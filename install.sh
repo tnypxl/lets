@@ -1,18 +1,33 @@
 #!/usr/bin/env bash
 #
-# Symlink this directory's agents and skills into a Claude config dir, and
-# expose the domain/workflow cascade floor into ~/.agents.
+# Copy this directory's agents and skills into a Claude config dir, and
+# expose the domain/workflow cascade floor into ~/.agents. Each dest placed
+# this way is recorded in a manifest, read back on later runs to tell a
+# fresh dest from one edited since install.
 #
-#   install.sh --claude              install (symlink) into ~/.claude and ~/.agents
-#   install.sh --claude --uninstall  remove the symlinks this script created
+#   install.sh --claude                    install into ~/.claude and ~/.agents
+#   install.sh --claude --uninstall        remove the copies recorded in
+#                                           the manifest
+#   install.sh --claude --force-reinstall  replace dests that have diverged
+#                                           since install (add --yes/-y to
+#                                           skip the confirmation prompt)
 #
 # Agents are the *.md files in this directory that begin with YAML frontmatter
 # (SYSTEM.md and other plain docs are ignored). Skills are the subdirectories of
-# ./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored).
+# ./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored). A skill
+# installs as its whole directory (one dest); agents, shared skill docs, and
+# the domain/workflow cascade floor (./domains/, ./workflows/) install per file.
 #
-# The domain/workflow cascade floor: ./domains/ and ./workflows/ are linked as
-# ~/.agents/domains and ~/.agents/workflows so the skill can resolve named
-# domains and workflows against $HOME/.agents/<kind>/<name>.md on any machine.
+# A dest already in place and unchanged since install is left alone; one that
+# has diverged (edited since install, or never ours) is skipped with a warning
+# unless --force-reinstall is given, which backs it up (.bak.<timestamp>)
+# before replacing it. --force-reinstall asks one confirmation per run on a
+# TTY; --yes/-y pre-answers it so the run doesn't prompt. With no TTY and no
+# --yes, diverged dests are left skipped.
+#
+# Every placed dest is recorded in a manifest, $AGENTS_HOME/.lets-lock -- one
+# line per dest, a content hash and its absolute path -- read on reinstall to
+# detect divergence and on uninstall to remove exactly what was placed.
 #
 # Override the Claude config root with CLAUDE_HOME (defaults to ~/.claude).
 # Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents).
@@ -24,28 +39,39 @@ AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 
 usage() {
   cat <<'EOF'
-Symlink this directory's agents and skills into a Claude config dir, and
-expose the domain/workflow cascade floor into ~/.agents.
+Copy this directory's agents and skills into a Claude config dir, and
+expose the domain/workflow cascade floor into ~/.agents. Each dest placed
+this way is recorded in a manifest, read back on later runs to tell a
+fresh dest from one edited since install.
 
-  install.sh --claude              install (symlink) into ~/.claude and ~/.agents
-  install.sh --claude --uninstall  remove the symlinks this script created
+  install.sh --claude                    install into ~/.claude and ~/.agents
+  install.sh --claude --uninstall        remove the copies recorded in
+                                          the manifest
+  install.sh --claude --force-reinstall  replace dests that have diverged
+                                          since install (add --yes/-y to
+                                          skip the confirmation prompt)
 
 Agents are the *.md files in this directory that begin with YAML frontmatter
 (SYSTEM.md and other plain docs are ignored). Skills are the subdirectories of
-./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored).
+./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored). A skill
+installs as its whole directory (one dest); agents, shared skill docs, and
+the domain/workflow cascade floor (./domains/, ./workflows/) install per file.
 
-The domain/workflow cascade floor: ./domains/ and ./workflows/ are linked as
-~/.agents/domains and ~/.agents/workflows so the skill can resolve named
-domains and workflows against $HOME/.agents/<kind>/<name>.md on any machine.
+A dest already in place and unchanged since install is left alone; one that
+has diverged (edited since install, or never ours) is skipped with a warning
+unless --force-reinstall is given, which backs it up (.bak.<timestamp>)
+before replacing it. --force-reinstall asks one confirmation per run on a
+TTY; --yes/-y pre-answers it so the run doesn't prompt. With no TTY and no
+--yes, diverged dests are left skipped.
+
+Every placed dest is recorded in a manifest, $AGENTS_HOME/.lets-lock -- one
+line per dest, a content hash and its absolute path -- read on reinstall to
+detect divergence and on uninstall to remove exactly what was placed.
 
 Override the Claude config root with CLAUDE_HOME (defaults to ~/.claude).
 Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents).
 EOF
 }
-
-# A symlink is "ours" if its target matches src ignoring a trailing slash
-# (pre-existing skill links were created with one; we create them without).
-links_to() { [[ "$(readlink "$1")" == "${2%/}" || "$(readlink "$1")" == "${2%/}/" ]]; }
 
 # Print the absolute path of every agent definition (root *.md with frontmatter).
 collect_agents() {
@@ -149,40 +175,6 @@ classify_dest() {
   [[ "$(content_hash "$dest")" == "${MANIFEST[$dest]}" ]] && echo "matches-recorded" || echo "diverged"
 }
 
-link_one() {
-  local src="$1" dest="$2"
-  mkdir -p "$(dirname "$dest")"
-  if [[ -L "$dest" ]]; then
-    links_to "$dest" "$src" && { echo "  ok    ${dest/#$HOME/\~} (already linked)"; return; }
-    echo "  warn  ${dest/#$HOME/\~} -> $(readlink "$dest") (not ours; skipping)"; return
-  fi
-  [[ -e "$dest" ]] && { echo "  warn  ${dest/#$HOME/\~} exists, not a symlink (skipping)"; return; }
-  ln -s "$src" "$dest"
-  echo "  link  ${dest/#$HOME/\~}"
-}
-
-unlink_one() {
-  local src="$1" dest="$2"
-  [[ -L "$dest" ]] || return 0
-  if links_to "$dest" "$src"; then
-    rm "$dest"; echo "  rm    ${dest/#$HOME/\~}"
-  else
-    echo "  skip  ${dest/#$HOME/\~} -> $(readlink "$dest") (not ours)"
-  fi
-}
-
-apply() {
-  local fn="$1" src
-  echo "Agents -> ${CLAUDE_HOME/#$HOME/\~}/agents/"
-  while IFS= read -r src; do "$fn" "$src" "$CLAUDE_HOME/agents/$(basename "$src")"; done < <(collect_agents)
-  echo "Skills -> ${CLAUDE_HOME/#$HOME/\~}/skills/"
-  while IFS= read -r src; do "$fn" "$src" "$CLAUDE_HOME/skills/$(basename "$src")"; done < <(collect_skills)
-  while IFS= read -r src; do "$fn" "$src" "$CLAUDE_HOME/skills/$(basename "$src")"; done < <(collect_skill_docs)
-  echo "Cascade floor -> ${AGENTS_HOME/#$HOME/\~}/"
-  [[ -d "$SOURCE_DIR/domains"   ]] && "$fn" "$SOURCE_DIR/domains"   "$AGENTS_HOME/domains"
-  [[ -d "$SOURCE_DIR/workflows" ]] && "$fn" "$SOURCE_DIR/workflows" "$AGENTS_HOME/workflows"
-}
-
 # Print "<src><TAB><dest>" for every installable file, one pair per line
 # (TAB-separated so paths with spaces survive intact) — the flat enumeration
 # the copy loop and manifest consume. Agents, skills, and skill docs map
@@ -195,7 +187,7 @@ apply() {
 # pure pair stream, so a caller can consume it with
 #   while IFS=$'\t' read -r src dest; do ... done < <(enumerate_pairs)
 # without headings landing in $src/$dest. The headings still print to the
-# terminal (stderr isn't discarded), same wording as apply()'s today.
+# terminal, since stderr isn't discarded.
 enumerate_pairs() {
   local src f rel group dir
 
@@ -267,7 +259,8 @@ confirm_force() {
 # the manifest once with everything actually placed this run (a diverged dest
 # drops out of the manifest even if a prior run recorded it). This is the
 # copy replacement for the old `apply link_one` path — link_one/unlink_one/
-# apply stay in place; T15 retires them once uninstall also moves off them.
+# apply have been retired now that copy and manifest-based uninstall are in
+# place.
 install_copy() {
   load_manifest
   local src dest state backup placed=()
@@ -306,7 +299,7 @@ install_copy() {
 # alone rather than clobbered. Clears the manifest once done, since whatever's
 # left is either already gone or no longer ours to track. This is the copy
 # replacement for the old `apply unlink_one` path — link_one/unlink_one/apply
-# stay in place for T15 to retire.
+# have been retired.
 install_uninstall() {
   load_manifest
   local dest state

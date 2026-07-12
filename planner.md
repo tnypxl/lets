@@ -23,6 +23,7 @@ The `lets` skill hands you the notebook's committed Approach (and `research.md`,
 - If grounding **conflicts with the Approach**, do not plan around it. Stop and return the conflict separately so the skill can send the human back to `discuss`.
 
 **Setup-mode shape.** When `session.yml` carries `setup: domain` or `setup: workflow`, the Approach is decomposing a reference file. The same one-outcome discipline applies, but the section structure is fixed by the target file type:
+
 - **domain**: one task for the scope/intro, one task per standards-area section, one task for the hygiene/voice section.
 - **workflow**: one task for the frontmatter (default domain, coupling declarations), then one task per per-verb guidance section present (`discuss`, `research`, `plan`, `execute`).
 

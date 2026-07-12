@@ -1,11 +1,6 @@
 # lets
 
-`/lets` is a small harness for thinking a piece of work through in stages,
-collaboratively. You steer while the LLM predicts narrowly and
-waits. It produces a handful of clean markdown documents that a you or
-LLM can pick up later and be correctly oriented — code, writing,
-infra decisions, research, planning, anything that benefits from being
-thought through before it's done.
+`/lets` is a small harness for thinking a piece of work through in stages, collaboratively. You steer while the LLM predicts narrowly and waits. It produces a handful of clean markdown documents that a you or LLM can pick up later and be correctly oriented — code, writing, infra decisions, research, planning, anything that benefits from being thought through before it's done.
 
 ## Concepts
 
@@ -44,7 +39,7 @@ project-root/
 | `plan`     | `plan.md`     | ordered tasks toward the approach           |
 | `execute`  | `execute.md`  | the work done, and a running record of it   |
 
-The notebook anchors the other three. Research, plan, and execution all hang off it; when the notebook moves, they reconcile to it. A plan decomposes the notebook's approach into tasks; execution's drift correction points back at the notebook when a task reveals the approach itself was wrong. Drop the notebook and both of those relationships lose their anchor — the rest of the harness assumes it's there.
+The notebook anchors research, plan, and execute. They are reconciled to it when the notebook movies. A plan decomposes the notebook's approach into tasks with checklists. An execution's drift correction points back at the notebook when a task reveals the approach itself was wrong. Drop the notebook and both of those relationships lose their anchor — the rest of the harness assumes it's there.
 
 ### Living vs. ledger
 
@@ -59,9 +54,7 @@ Every artifact's frontmatter carries a `status:` of `active` or `locked`. The hu
 
 ## Quickstart
 
-With the concepts in place, three examples show what a stem looks like in
-practice: a stem that runs all four verbs, a stem that stops after two, and
-a boundary case showing what happens with no notebook at all.
+With the concepts in place, three examples show what a stem looks like in practice: a stem that runs all four verbs, a stem that stops after two, and a boundary case showing what happens with no notebook at all.
 
 ### Example (a): a stem through all four verbs
 
@@ -72,8 +65,7 @@ Say the work is fixing a cache invalidation bug. The stem is `3.cache-invalidati
 ```markdown
 ## OBJECTIVE
 
-Stale product prices are served after a price update; the cache isn't
-invalidated on write.
+Stale product prices are served after a price update; the cache isn't invalidated on write.
 
 ## APPROACH
 
@@ -106,13 +98,11 @@ Decide whether the reporting service should move from SQLite to Postgres.
 
 ## APPROACH
 
-Weigh the migration against the concrete problems SQLite is currently
-causing, not against Postgres in the abstract.
+Weigh the migration against the concrete problems SQLite is currently causing, not against Postgres in the abstract.
 
 ## OPEN QUESTIONS
 
-- [ ] Q1: What write-contention errors has the service logged, and how
-      often?
+- [ ] Q1: What write-contention errors has the service logged, and how often?
 ```
 
 **`research`** writes `research.md`: current SQLite write-lock behavior, the service's concurrency pattern, and what a Postgres migration would cost in code and ops. The stem stops here — the decision this stem exists for is answered by `research.md`, and there's no approach yet concrete enough to decompose into `plan.md`.
@@ -121,11 +111,7 @@ causing, not against Postgres in the abstract.
 
 ### Example (c): plan + execute with no notebook
 
-Point `/lets plan` at a stem folder with no `notebook.md`, or run `/lets
-execute` before one exists, and the run fails before any subagent starts.
-Every verb dispatches through `resolve-context.sh`, and that router
-requires `notebook.md` unconditionally — it locates the stem folder, then
-checks for the notebook and exits 1 if it's missing:
+Point `/lets plan` at a stem folder with no `notebook.md`, or run `/lets execute` before one exists, and the run fails before any subagent starts. Every verb dispatches through `resolve-context.sh`, and that router requires `notebook.md` unconditionally — it locates the stem folder, then checks for the notebook and exits 1 if it's missing:
 
 ```bash
 NOTEBOOK="$STEM_DIR/notebook.md"
@@ -135,11 +121,7 @@ if [[ ! -f "$NOTEBOOK" ]]; then
 fi
 ```
 
-That check runs ahead of the role-based content slicing and the
-domain/workflow resolution that follow it in the script, so it applies the
-same way to `plan` and `execute`, dispatcher and worker alike. There is no
-`/lets` command that reaches the planner or the executor without a notebook
-already in place.
+That check runs ahead of the role-based content slicing and the domain/workflow resolution that follow it in the script, so it applies the same way to `plan` and `execute`, dispatcher and worker alike. There is no `/lets` command that reaches the planner or the executor without a notebook already in place.
 
 ```
 project-root/
@@ -147,53 +129,44 @@ project-root/
   3.quick-fix/          # no notebook.md — resolve-context.sh exits 1 here
 ```
 
-This is a boundary of the harness, not a smaller or degenerate path through
-it: the router has no notion of running `plan` or `execute` without a
-notebook to anchor them. Run `discuss` first, even briefly, to write
-`notebook.md` before `plan` or `execute` can run.
+This is a boundary of the harness, not a smaller or degenerate path through it: the router has no notion of running `plan` or `execute` without a notebook to anchor them. Run `discuss` first, even briefly, to write `notebook.md` before `plan` or `execute` can run.
 
 ## Footprint
 
-The three examples above are what `/lets` produces at a project root. The
-rest of this section is for maintainers: the files that make up the
-harness itself, and how they depend on each other.
+The three examples above are what `/lets` produces at a project root. The rest of this section is for maintainers: the files that make up the harness itself, and how they depend on each other.
 
-The harness is `skills/lets/` plus a handful of files at the `.agents/`
-root that the skill depends on. Extracting the harness means carrying all
-of it.
+The harness is `skills/lets/` plus a handful of files at the `.agents/` root that the skill depends on. Extracting the harness means carrying all of it.
 
 ### `skills/lets/`
 
-| Path                         | Role                                                                                                     |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `SKILL.md`                   | Entry point; thin dispatcher that resolves verb/stem/artifact and hands off to the router.               |
-| `SETUP.md`                   | Authoring-mode overlay (domain/workflow setup), layered onto the normal slice by the router.             |
-| `reference/CORE.md`          | Shared contract prepended to every verb and subagent slice.                                              |
-| `reference/VOICE.md`         | Standing assertion-honesty/voice contract for prose deliverables.                                        |
-| `verbs/discuss.md`           | Verb behavior for `discuss` (writes `notebook.md`).                                                      |
-| `verbs/research.md`          | Verb behavior for `research` (writes `research.md`).                                                     |
-| `verbs/plan.md`              | Verb behavior for `plan` (writes `plan.md`).                                                             |
-| `verbs/execute.md`           | Verb behavior for `execute` (writes `execute.md`; drift/correction; log ownership).                      |
-| `templates/notebook.md`      | Template for `notebook.md`.                                                                              |
-| `templates/research.md`      | Template for `research.md`.                                                                              |
-| `templates/plan.md`          | Template for `plan.md`.                                                                                  |
-| `templates/execute.md`       | Template for `execute.md`.                                                                               |
-| `templates/domain.md`        | Template for a domain reference file.                                                                    |
-| `templates/workflow.md`      | Template for a workflow reference file.                                                                  |
-| `scripts/resolve-context.sh` | The router — assembles the exact markdown context a caller needs (CORE + verb + optional setup overlay). |
-| `scripts/read-section.sh`    | Slices one precise block (task-by-number or heading range) out of a live stem document.                  |
+| Path                         | Role                                                      |
+| ---------------------------- | --------------------------------------------------------- |
+| `SKILL.md`                   | Dispatcher; resolves verb/stem/artifact, hands to router. |
+| `SETUP.md`                   | Authoring-mode overlay (domain/workflow setup).           |
+| `reference/CORE.md`          | Shared contract prepended to every slice.                 |
+| `reference/VOICE.md`         | Voice/assertion-honesty contract for prose.               |
+| `verbs/discuss.md`           | Verb behavior for `discuss` (writes `notebook.md`).       |
+| `verbs/research.md`          | Verb behavior for `research` (writes `research.md`).      |
+| `verbs/plan.md`              | Verb behavior for `plan` (writes `plan.md`).              |
+| `verbs/execute.md`           | Verb behavior for `execute` (writes `execute.md`).        |
+| `templates/notebook.md`      | Template for `notebook.md`.                               |
+| `templates/research.md`      | Template for `research.md`.                               |
+| `templates/plan.md`          | Template for `plan.md`.                                   |
+| `templates/execute.md`       | Template for `execute.md`.                                |
+| `templates/domain.md`        | Template for a domain reference file.                     |
+| `templates/workflow.md`      | Template for a workflow reference file.                   |
+| `scripts/resolve-context.sh` | The router — assembles the caller's context slice.        |
+| `scripts/read-section.sh`    | Slices one block out of a live stem document.             |
 
 ### Subagent defs — `.agents/` root
 
-| Path            | Role                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `executor.md`   | Implementation heavy-lifter for `/lets execute`; writes external artifacts and returns a log-ready report.               |
-| `planner.md`    | Decomposition heavy-lifter for `/lets plan`; turns a committed approach into an ordered task list.                       |
-| `researcher.md` | Investigation heavy-lifter; narrow inline fact-check during discuss, or full bounded investigation for `/lets research`. |
+| Path            | Role                                                         |
+| --------------- | ------------------------------------------------------------ |
+| `executor.md`   | Implementation heavy-lifter for `/lets execute`.             |
+| `planner.md`    | Decomposition heavy-lifter for `/lets plan`.                 |
+| `researcher.md` | Investigation heavy-lifter for discuss and `/lets research`. |
 
-Each carries YAML frontmatter (`name:`/`description:`/`model:`/`color:`).
-`install.sh` detects any root `*.md` starting with `---` and symlinks it
-into `$CLAUDE_HOME/agents/`.
+Each carries YAML frontmatter (`name:`/`description:`/`model:`/`color:`). `install.sh` detects any root `*.md` starting with `---` and symlinks it into `$CLAUDE_HOME/agents/`.
 
 ### Shared reference — `.agents/` root
 
@@ -206,19 +179,13 @@ into `$CLAUDE_HOME/agents/`.
 | `workflows/README.md` | Explains the workflow cascade mechanism; not itself a workflow. |
 | `workflows/golang.md` | Workflow preset tuning the four verbs for Go work.              |
 
-A stem opts into a domain/workflow via `notebook.md` frontmatter; the skill
-resolves the name against `$PWD/.agents/<kind>/<name>.md` first, then
-`~/.agents/<kind>/<name>.md`. `install.sh` symlinks `domains/` and
-`workflows/` wholesale into `$AGENTS_HOME` (default `~/.agents/`).
+A stem opts into a domain/workflow via `notebook.md` frontmatter; the skill resolves the name against `$PWD/.agents/<kind>/<name>.md` first, then `~/.agents/<kind>/<name>.md`. `install.sh` symlinks `domains/` and `workflows/` wholesale into `$AGENTS_HOME` (default `~/.agents/`).
 
 Domains and workflows can be mixed and matched. The happy path is one that pairs a "writing" domain to also with a "writing" workflow. Though this is ultimately your choice
 
 ### `install.sh`
 
-The installer for this footprint: it symlinks `executor.md`, `planner.md`,
-`researcher.md`, `skills/lets/`, `domains/`, and `workflows/` into
-`~/.claude` and `~/.agents`. An extraction needs it, or an equivalent, to
-stay installable.
+The installer for this footprint: it symlinks `executor.md`, `planner.md`, `researcher.md`, `skills/lets/`, `domains/`, and `workflows/` into `~/.claude` and `~/.agents`. An extraction needs it, or an equivalent, to stay installable.
 
 ### Dependency edges
 

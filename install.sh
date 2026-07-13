@@ -37,6 +37,21 @@ SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 
+# Basenames never worth installing — OS/editor cruft that can appear inside a
+# skill dir (copied whole) or under domains/workflows (walked per file), and
+# would otherwise ride along in the copy and perturb a directory's content
+# hash. IGNORE_FIND is the derived find(1) predicate group -- "( -name a -o
+# -name b … )" -- so enumeration, hashing, and copying all exclude the same set
+# from one list.
+IGNORE_NAMES=('.DS_Store' '*.swp' '*~')
+IGNORE_FIND=('(')
+for _n in "${IGNORE_NAMES[@]}"; do
+  [[ ${#IGNORE_FIND[@]} -gt 1 ]] && IGNORE_FIND+=('-o')
+  IGNORE_FIND+=('-name' "$_n")
+done
+IGNORE_FIND+=(')')
+unset _n
+
 usage() {
   cat <<'EOF'
 Copy this directory's agents and skills into a Claude config dir, and
@@ -123,7 +138,7 @@ content_hash() {
   resolve_hash_tool
   if [[ -d "$1" ]]; then
     local dir="$1" f
-    ( cd "$dir" && find . -type f | sort | while IFS= read -r f; do
+    ( cd "$dir" && find . -type f ! "${IGNORE_FIND[@]}" | sort | while IFS= read -r f; do
         "${HASH_TOOL[@]}" "$f"
       done ) | "${HASH_TOOL[@]}" | awk '{print $1}'
   else
@@ -142,6 +157,7 @@ write_manifest() {
   local manifest="$AGENTS_HOME/.lets-lock" hash dest
   : > "$manifest"
   while read -r hash dest; do
+    [[ -n "$dest" ]] || continue
     printf '%s  %s\n' "$hash" "$dest" >> "$manifest"
   done
   echo "  manifest -> ${manifest/#$HOME/\~} ($(wc -l < "$manifest" | tr -d ' ') entries)"
@@ -159,6 +175,7 @@ load_manifest() {
   local manifest="$AGENTS_HOME/.lets-lock" hash dest
   [[ -f "$manifest" ]] || return 0
   while read -r hash dest; do
+    [[ -n "$dest" ]] || continue
     MANIFEST["$dest"]="$hash"
   done < "$manifest"
 }
@@ -211,22 +228,29 @@ enumerate_pairs() {
     while IFS= read -r f; do
       rel="${f#"$dir"/}"
       printf '%s\t%s\n' "$f" "$AGENTS_HOME/$group/$rel"
-    done < <(find "$dir" -type f | sort)
+    done < <(find "$dir" -type f ! "${IGNORE_FIND[@]}" | sort)
   done
 }
 
-# Copy src into dest, creating dest's parent dir. A directory src (a skill,
-# installed whole) is replaced wholesale — rm -rf then cp -R — so a file
-# removed from src doesn't linger as stale content at dest; a file src is a
-# plain overwrite. Shared by install_copy's absent and matches-recorded arms,
-# which both place fresh content the same way.
+# Copy src into dest, creating dest's parent dir. Both arms clear dest first —
+# rm -rf then cp -R for a directory src (a skill, installed whole) so a file
+# removed from src doesn't linger as stale content at dest; rm -f then cp for a
+# file src, so a dest that is a symlink (e.g. left by an older symlink-based
+# install) is replaced by a real copy rather than written back through into the
+# source. A directory copy then prunes IGNORE_NAMES cruft (.DS_Store and the
+# like) that cp -R would otherwise sweep in — the same set content_hash skips,
+# so a placed skill hashes identically to what classify_dest later checks.
+# Shared by install_copy's absent and matches-recorded arms, which both place
+# fresh content the same way.
 place_pair() {
   local src="$1" dest="$2"
   mkdir -p "$(dirname "$dest")"
   if [[ -d "$src" ]]; then
     rm -rf "$dest"
     cp -R "$src" "$dest"
+    find "$dest" -type f "${IGNORE_FIND[@]}" -delete
   else
+    rm -f "$dest"
     cp "$src" "$dest"
   fi
 }
@@ -289,7 +313,7 @@ install_copy() {
         ;;
     esac
   done < <(enumerate_pairs)
-  printf '%s\n' "${placed[@]}" | write_manifest
+  printf '%s\n' "${placed[@]+"${placed[@]}"}" | write_manifest
 }
 
 # Manifest-driven uninstall: walk every recorded dest and remove exactly what

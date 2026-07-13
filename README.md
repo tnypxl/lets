@@ -124,7 +124,7 @@ fi
 That check runs ahead of the role-based content slicing and the domain/workflow resolution that follow it in the script, so it applies the same way to `plan` and `execute`, dispatcher and worker alike. There is no `/lets` command that reaches the planner or the executor without a notebook already in place.
 
 ```
-project-root/
+project-root
   session.yml
   3.quick-fix/          # no notebook.md — resolve-context.sh exits 1 here
 ```
@@ -195,4 +195,3 @@ The installer for this footprint: it symlinks `executor.md`, `planner.md`, `rese
 - the skill, via a stem's `notebook.md` frontmatter → `domains/*.md` (optional, cascading `$PWD/.agents/` then `~/.agents/`)
 - the skill, via a stem's `notebook.md` frontmatter → `workflows/*.md` (optional, same cascade)
 - `install.sh` → `executor.md`, `planner.md`, `researcher.md`, `skills/lets/`, `domains/`, `workflows/`
-  </content>

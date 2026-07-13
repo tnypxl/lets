@@ -3,11 +3,11 @@ set -euo pipefail
 
 # resolve-context.sh
 #
-# The router. Given a caller's flags, assembles the exact markdown context
-# that caller needs and prints it to stdout — never a path, never a
-# KEY=value line to be parsed and re-fetched. This is what keeps a
-# reference-of-references from being partial-read: the script walks every
-# hop itself.
+# The router. Given a caller's flags, assembles the exact context that
+# caller needs and prints it to stdout as one rooted, tagged
+# <lets_context> document — never a path, never a KEY=value line to be
+# parsed and re-fetched. This is what keeps a reference-of-references from
+# being partial-read: the script walks every hop itself.
 #
 # Flags:
 #   --activity {discuss|research|plan|execute}   required
@@ -15,13 +15,24 @@ set -euo pipefail
 #   --mode     {full|inline}                      optional (research only, today)
 #   --setup    {domain|workflow}                  optional; absent = no overlay
 #
-# Assembly order:
-#   CORE.md  ->  role-sliced verbs/{activity}.md  ->  active-mode marker
-#             ->  SETUP.md overlay (preamble + {activity} section), if --setup
-#             ->  resolved domain/workflow file bodies, unless --setup
+# Assembly order (children of the <lets_context> root):
+#   <core>  ->  <verb name>  (role-sliced)
+#           ->  <setup kind> (preamble + {activity} section), if --setup
+#           ->  <domain name> then <workflow name>, unless --setup
+# Root attributes carry the run parameters (activity, role, mode, setup);
+# per-segment frontmatter is stripped on emit.
 #
 # Exits nonzero with a message to stderr on any flag, resolution, or
 # coupling failure.
+
+# ---------------------------------------------------------------------------
+# Skill location — resolved from the script's own path, never from $PWD.
+# $PWD is the project root (a different tree entirely); the sibling content
+# files live beside this script regardless of where the caller stands.
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/lib/slice.sh"
 
 # ---------------------------------------------------------------------------
 # Flags
@@ -85,13 +96,6 @@ case "$SETUP" in
         ;;
 esac
 
-# ---------------------------------------------------------------------------
-# Skill location — resolved from the script's own path, never from $PWD.
-# $PWD is the project root (a different tree entirely); the sibling content
-# files live beside this script regardless of where the caller stands.
-# ---------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 CORE_FILE="$SKILL_DIR/reference/CORE.md"
 VERB_FILE="$SKILL_DIR/verbs/${ACTIVITY}.md"
 SETUP_FILE="$SKILL_DIR/SETUP.md"
@@ -194,44 +198,18 @@ find_project_root() {
 }
 
 # ---------------------------------------------------------------------------
-# Role slicer — keeps unwrapped content and wrapped content matching $ROLE;
-# drops wrapped content belonging to the other role. Strips the fence
-# markers themselves either way.
+# Frontmatter stripper — drops a leading `---`...`---` block and prints the
+# remaining body verbatim. Files with no leading `---` block (e.g. domain
+# files) pass through unchanged. Reads a file path, or stdin when called
+# with no argument.
 # ---------------------------------------------------------------------------
-slice_role() {
-    local file="$1"
-    local role="$2"
-    awk -v role="$role" '
-        /^<!-- role:dispatcher -->[[:space:]]*$/ { skip = (role != "dispatcher"); next }
-        /^<!-- role:worker -->[[:space:]]*$/     { skip = (role != "worker"); next }
-        /^<!-- \/role -->[[:space:]]*$/          { skip = 0; next }
-        { if (!skip) print }
-    ' "$file"
-}
-
-# ---------------------------------------------------------------------------
-# SETUP.md slicers — the preamble (everything before the first per-verb
-# `## {verb}` heading) and one per-verb `## {activity}` section (through the
-# next `## ` heading or EOF).
-# ---------------------------------------------------------------------------
-slice_setup_preamble() {
-    local file="$1"
+strip_frontmatter() {
+    local file="${1:-}"
     awk '
-        /^## (discuss|research|plan|execute)[[:space:]]*$/ { exit }
+        NR == 1 && /^---[[:space:]]*$/ { in_fm = 1; next }
+        in_fm { if (/^---[[:space:]]*$/) { in_fm = 0 }; next }
         { print }
-    ' "$file"
-}
-
-slice_setup_section() {
-    local file="$1"
-    local activity="$2"
-    awk -v activity="$activity" '
-        BEGIN { pat = "^## " activity "[[:space:]]*$"; found = 0 }
-        $0 ~ pat { found = 1; print; next }
-        found && /^## / { exit }
-        found { print }
-        END { exit (found ? 0 : 1) }
-    ' "$file"
+    ' "${file:-/dev/stdin}"
 }
 
 # ===========================================================================
@@ -328,33 +306,48 @@ if [[ -z "$SETUP" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Assembly — emit content, not paths or KEY=value lines.
+# Assembly — one rooted, tagged <lets_context> document. Frontmatter is
+# stripped from every file/slice segment via strip_frontmatter(); the tag
+# and its name attribute carry what the frontmatter used to say.
 # ---------------------------------------------------------------------------
 
-cat "$CORE_FILE"
-echo
-slice_role "$VERB_FILE" "$ROLE"
+ROOT_ATTRS="activity=\"$ACTIVITY\" role=\"$ROLE\""
+[[ -n "$MODE" ]]  && ROOT_ATTRS="$ROOT_ATTRS mode=\"$MODE\""
+[[ -n "$SETUP" ]] && ROOT_ATTRS="$ROOT_ATTRS setup=\"$SETUP\""
 
-if [[ -n "$MODE" ]]; then
-    echo
-    echo "ACTIVE MODE: $MODE"
-fi
+echo "<lets_context $ROOT_ATTRS>"
+
+echo "<core>"
+strip_frontmatter "$CORE_FILE"
+echo "</core>"
+
+echo "<verb name=\"$ACTIVITY\">"
+slice_role "$VERB_FILE" "$ROLE" | strip_frontmatter
+echo "</verb>"
 
 if [[ -n "$SETUP" ]]; then
-    echo
-    slice_setup_preamble "$SETUP_FILE"
-    if ! slice_setup_section "$SETUP_FILE" "$ACTIVITY"; then
+    SETUP_SECTION="$(slice_setup_section "$SETUP_FILE" "$ACTIVITY")" || {
         echo "resolve-context: SETUP.md has no '## $ACTIVITY' section" >&2
         exit 1
+    }
+    echo "<setup kind=\"$SETUP\">"
+    {
+        slice_setup_preamble "$SETUP_FILE"
+        printf '%s\n' "$SETUP_SECTION"
+    } | strip_frontmatter
+    echo "</setup>"
+else
+    if [[ -n "$DOMAIN_FILE" ]]; then
+        echo "<domain name=\"$DOMAIN_NAME\">"
+        strip_frontmatter "$DOMAIN_FILE"
+        echo "</domain>"
+    fi
+
+    if [[ -n "$WF_FILE" ]]; then
+        echo "<workflow name=\"$WF_NAME\">"
+        strip_frontmatter "$WF_FILE"
+        echo "</workflow>"
     fi
 fi
 
-if [[ -n "$DOMAIN_FILE" ]]; then
-    echo
-    cat "$DOMAIN_FILE"
-fi
-
-if [[ -n "$WF_FILE" ]]; then
-    echo
-    cat "$WF_FILE"
-fi
+echo "</lets_context>"

@@ -43,15 +43,15 @@ Shape each field by what it holds: a single fact stays inline, anything with mor
 
 ```
 ## FINDINGS
-- <neutral observation, with source>
+- {neutral observation, with source}
 
 ## IMPLICATIONS
-- <what the findings mean for the approach/plan — kept distinct from Findings>
+- {what the findings mean for the approach/plan — kept distinct from Findings}
 
 ## GAPS
-- <what could not be determined>
+- {what could not be determined}
 
 ## CONFLICTS   (only if a finding contradicts the Approach — put this first)
-- <what was found, why it conflicts, what it implies>
+- {what was found, why it conflicts, what it implies}
 ```
 <!-- /role -->

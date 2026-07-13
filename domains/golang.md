@@ -2,7 +2,7 @@
 
 Standards that Go programming and project development follow, project-agnostic and global; override per-project by placing a `golang.md` under the project's `.agents/domains/`.
 
-## Package & project structure
+## Package and project structure
 
 - There is no single official Go project layout. `golang-standards/project-layout` is a popular community convention, not a Go-team standard — Russ Cox pushed back on it directly (golang-standards/project-layout#117), calling it too complex and objecting to the "standard" framing as misleading to newcomers.
 - The Go team's actual minimal position: a repo needs a `LICENSE`, a `go.mod` at the root, and code organized however the author sees fit. Nothing more is required.
@@ -10,7 +10,7 @@ Standards that Go programming and project development follow, project-agnostic a
 - `cmd/` and `pkg/` are conventional, not enforced — useful shorthand some projects adopt, not a tree to impose by default.
 - Do not prescribe a `cmd/`/`pkg/`/`internal/` tree as if it were canonical; describe what's real (the enforced part and the floor) rather than recommending a fixed shape.
 
-## Naming & API design
+## Naming and API design
 
 - No stutter: a type's name should not repeat its package. Callers already write the package prefix, so `chubby.ChubbyFile` is redundant — `chubby.File` is the exported name, referenced as `chubby.File` from outside the package.
 - Avoid junk-drawer package names like `util`, `common`, or `misc`. A package name should describe what it provides, not that it's a place things got put.
@@ -40,7 +40,7 @@ Standards that Go programming and project development follow, project-agnostic a
 - Use `Example` functions (with a `// Output:` comment) as compiler-checked documentation — they're verified by `go test` and shown to readers as usage examples, doing double duty.
 - Whether to pull in an assertion library like testify or stick to stdlib (`if got != want { t.Errorf(...) }`) is a contested, project-level choice, not a settled convention — both are idiomatic; don't default to one without checking what the project already uses.
 
-## Tooling & dependencies
+## Tooling and dependencies
 
 - Format every file with gofmt; there is no style debate to have — unformatted Go code is simply wrong.
 - Run `go vet` to catch code that compiles but misbehaves — suspicious constructs like malformed format-string arguments or unreachable code, not style.

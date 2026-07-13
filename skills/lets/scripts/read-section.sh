@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/slice.sh"
+
 # read-section.sh
 #
 # Slice one precise block out of a live stem markdown file, so a caller gets
@@ -41,39 +44,6 @@ case "$ID" in
         exit 1
         ;;
 esac
-
-# ---------------------------------------------------------------------------
-# Mode: heading-block-by-number — slice `### T# - {title}` through the next
-# `### ` heading (or EOF).
-# ---------------------------------------------------------------------------
-slice_heading() {
-    local file="$1"
-    local id="$2"
-    awk -v id="$id" '
-        BEGIN { pat = "^### " id " - "; found = 0 }
-        $0 ~ pat { found = 1; print; next }
-        found && /^### / { exit }
-        found { print }
-        END { exit (found ? 0 : 1) }
-    ' "$file"
-}
-
-# ---------------------------------------------------------------------------
-# Mode: list-item-by-id — slice the `- [ ] Q# - …`/`- [x] Q#: …` line through
-# any indented continuation lines beneath it, up to the next top-level `- `
-# list item (or EOF).
-# ---------------------------------------------------------------------------
-slice_list_item() {
-    local file="$1"
-    local id="$2"
-    awk -v id="$id" '
-        BEGIN { pat = "^- \\[[ xX]\\] " id "[:-] "; found = 0 }
-        $0 ~ pat { found = 1; print; next }
-        found && /^- / { exit }
-        found { print }
-        END { exit (found ? 0 : 1) }
-    ' "$file"
-}
 
 case "$MODE" in
     heading)

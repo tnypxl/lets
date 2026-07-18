@@ -27,8 +27,10 @@ Each eval targets one rule the harness depends on:
 | 8 | router-error-verbatim | router stderr surfaced verbatim, stop, no silent repair |
 | 9 | research-flow-metered | researcher output contract, metered write-in, no invented sources |
 | 10 | drift-stop-and-flag | drift is stop-and-flag, never patched over; ledger untouched |
-| 11 | setup-mode-redirect | setup mode redirects the deliverable to `.agents/`, vocabulary rule inverts |
+| 11 | setup-flow | `/lets setup` guided flow: template-derived interview, `~/.lets/` workspace, confirmed install, vocabulary rule inverts |
 | 12 | next-index-creation | new stem gets highest index + 1; existing stems untouched |
+| 13 | deliverable-gate | domain deliverable forms block `plan` until APPROACH names one; stderr verbatim, no silent repair |
+| 14 | template-override-scaffold | workflow `template:plan` override shapes the scaffolded plan's tasks via `--template` |
 
 ## Running an eval
 
@@ -45,9 +47,12 @@ The skill-creator runner is agentic, so the workspace convention lives here:
    snapshots of the repo-root `planner.md` / `executor.md` / `researcher.md`;
    refresh them when the originals change.
 4. Run the eval prompt as a session rooted at `$work` and capture the
-   transcript. Evals 4-6 and 9-11 spawn subagents; if the runner executes
-   evals inside a subagent that cannot itself spawn subagents, run those
-   evals as top-level `claude -p` sessions in `$work` instead.
+   transcript. Evals 4-6, 9-10, and 14 spawn subagents; if the runner
+   executes evals inside a subagent that cannot itself spawn subagents, run
+   those evals as top-level `claude -p` sessions in `$work` instead.
+   Eval 11 writes to `~/.lets/` and may write to `~/.agents/` — run it with
+   a scratch `HOME` (`HOME=$work/home`) so the grader can assert on both
+   paths hermetically.
 5. Grade each expectation against the transcript plus the final workspace,
    comparing against the fixture copy still in `evals/files/<name>/`.
 

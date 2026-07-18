@@ -4,8 +4,9 @@ status: active   # or `locked` when the work is complete
 ---
 
 ## LOG
-<!-- Ledger. Append-only, chronological. One entry per finished task, in the shape below. Never rewrite past entries. Each entry is anchored by the same T# as the plan task it closes. -->
+<!-- Ledger. Append-only, chronological. One entry per finished task, in ENTRY-SHAPE below. Never rewrite past entries. Each entry is anchored by the same T# as the plan task it closes. -->
 
+### ENTRY-SHAPE
 <!--
 A field holding one fact stays inline: `**Label** — sentence.` A field
 holding more than one thing breaks into a bullet list under its label. Shape

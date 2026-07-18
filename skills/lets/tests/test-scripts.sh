@@ -93,8 +93,23 @@ assert_fails_with "bad --role" "--role must be one of dispatcher|worker"
 run "$EMPTY" "$RC" --activity plan --mode turbo
 assert_fails_with "bad --mode" "--mode must be one of full|inline"
 
-run "$EMPTY" "$RC" --activity plan --setup verb
-assert_fails_with "bad --setup" "--setup must be one of domain|workflow"
+run "$EMPTY" "$RC" --activity plan --setup domain
+assert_fails_with "--setup retired" "unrecognized argument '--setup'"
+
+run "$EMPTY" "$RC" --activity setup
+assert_fails_with "setup requires --kind" "requires --kind"
+
+run "$EMPTY" "$RC" --activity setup --kind verb --name x
+assert_fails_with "bad --kind" "--kind must be one of domain|workflow"
+
+run "$EMPTY" "$RC" --activity setup --kind domain
+assert_fails_with "setup requires --name" "requires --name"
+
+run "$EMPTY" "$RC" --activity setup --kind domain --name 'bad name!'
+assert_fails_with "bad --name" "--name must be letters, digits, dashes, underscores"
+
+run "$EMPTY" "$RC" --activity plan --kind domain --name x
+assert_fails_with "--kind rejected outside setup" "apply only to --activity setup"
 
 run "$EMPTY" "$RC" --activity plan --bogus x
 assert_fails_with "unrecognized argument" "unrecognized argument '--bogus'"
@@ -223,13 +238,164 @@ printf 'stem: delta\nworkflow: lone\n' > "$P/session.yml"
 run "$P" "$RC" --activity discuss
 assert_fails_with "workflow requires_domain unmet" "workflow 'lone' requires domain 'strict'"
 
-echo "resolve-context.sh — setup mode"
-P="$(new_proj setup epsilon)"
+echo "resolve-context.sh — directives, deliverables, template overrides"
+P="$(new_proj typed zeta)"
+mkdir -p "$P/.agents/domains" "$P/.agents/workflows"
+cat > "$P/.agents/domains/writing.md" <<'EOF'
+# Domain: writing
+Scope prose.
+
+## deliverables
+- chapter: a full draft chapter
+- outline: a chapter-level outline
+
+## style
+- One idea per paragraph.
+
+## directives
+- discuss: MUST surface the audience first
+- plan: NEVER split one chapter across tasks
+- all: MUST keep register consistent
+
+## template:plan
+### T-SHAPE
+DOMAIN-TASK-SHAPE
+
+### VOICE NOTES
+DOMAIN-VOICE-BODY
+EOF
+cat > "$P/.agents/workflows/book.md" <<'EOF'
+---
+domain: writing
+---
+# Workflow: book
+
+## plan
+Chapters ordered by narrative dependency.
+
+## directives
+- plan: MUST order tasks by narrative dependency
+
+## template:plan
+### VOICE NOTES
+WORKFLOW-VOICE-BODY
+EOF
+printf 'stem: zeta\nworkflow: book\n' > "$P/session.yml"
+
+run "$P" "$RC" --activity discuss
+assert_ok_contains "discuss directives sliced (discuss + all)" \
+    '<directives binding="true" activity="discuss">' \
+    '[domain:writing] MUST surface the audience first' \
+    '[domain:writing] MUST keep register consistent'
+run "$P" "$RC" --activity discuss
+assert_not_contains "other-verb directives excluded from discuss" \
+    'NEVER split one chapter' 'order tasks by narrative dependency'
+run "$P" "$RC" --activity discuss
+assert_not_contains "meta sections stripped from reference segments" \
+    '## directives' '## template:' 'DOMAIN-TASK-SHAPE' 'WORKFLOW-VOICE-BODY'
+run "$P" "$RC" --activity discuss
+if [[ $RCODE -eq 0 && "$OUT" == *'</directives>
+
+</lets_context>'* ]]; then
+    ok "directives segment emitted last"
+else
+    bad "directives segment emitted last" "exit=$RCODE; tail: ${OUT: -120}"
+fi
+run "$P" "$RC" --activity discuss
+assert_ok_contains "deliverable GATE generated on discuss" \
+    "GATE the APPROACH is not committable" "one of: chapter, outline"
+run "$P" "$RC" --activity discuss
+assert_not_contains "other-verb workflow sections excluded from discuss" \
+    'Chapters ordered by narrative dependency'
+
+run "$P" "$RC" --activity plan
+assert_fails_with "plan blocked without Deliverable line" \
+    "defines deliverable forms, but the notebook APPROACH names none"
+
+cat > "$P/1.zeta/notebook.md" <<'EOF'
+---
+title: fixture
+status: active
+---
+
+## OBJECTIVE
+
+## APPROACH
+
+Deliverable: chapter — the opening chapter.
+
+## OPEN QUESTIONS
+EOF
+run "$P" "$RC" --activity plan
+assert_ok_contains "plan passes with Deliverable line" \
+    '<directives binding="true" activity="plan">' \
+    '[domain:writing] NEVER split one chapter across tasks' \
+    '[workflow:book] MUST order tasks by narrative dependency'
+run "$P" "$RC" --activity plan
+assert_ok_contains "matching workflow section emitted on its verb" \
+    'Chapters ordered by narrative dependency'
+
+run "$P" "$RC" --activity plan --template
+assert_ok_contains "template mode appends unmatched override sections" \
+    '## OVERVIEW' '## TASKS' '## VOICE NOTES'
+run "$P" "$RC" --activity plan --template
+if [[ $RCODE -eq 0 && "$OUT" == *'WORKFLOW-VOICE-BODY'* && "$OUT" != *'DOMAIN-VOICE-BODY'* ]]; then
+    ok "workflow override beats domain override"
+else
+    bad "workflow override beats domain override" "exit=$RCODE"
+fi
+run "$P" "$RC" --activity plan --template
+assert_not_contains "template mode prints no context document" '<lets_context'
+
+cat > "$P/.agents/domains/anchored.md" <<'EOF'
+# Domain: anchored
+
+## template:plan
+### TASKS
+REPLACED-TASKS-BODY
+EOF
+printf 'stem: zeta\ndomain: anchored\n' > "$P/session.yml"
+run "$P" "$RC" --activity plan --template
+if [[ $RCODE -eq 0 && "$OUT" == *'REPLACED-TASKS-BODY'* && "$OUT" != *'stable anchor shared with the execute log'* ]]; then
+    ok "matching override replaces the base section body"
+else
+    bad "matching override replaces the base section body" "exit=$RCODE"
+fi
+
+rm -rf "$P/1.zeta"
+run "$P" "$RC" --activity discuss --template
+assert_ok_contains "template mode tolerates missing stem folder" '## OBJECTIVE' '## APPROACH'
+run "$P" "$RC" --activity discuss
+assert_fails_with "non-template call still requires the stem folder" "no stem folder matching"
+
+echo "resolve-context.sh — setup flow"
+run "$EMPTY" "$RC" --activity setup --kind domain --name python-style
+assert_ok_contains "setup emits flow, template, no stem needed" \
+    '<lets_context activity="setup" kind="domain" name="python-style">' \
+    '<setup kind="domain" name="python-style">' \
+    '<template kind="domain">' \
+    '## interview'
+run "$EMPTY" "$RC" --activity setup --kind domain --name python-style
+assert_not_contains "setup emits no verb/domain/workflow segments" \
+    '<verb name=' '<domain name=' '<workflow name=' '<existing path='
+
+P="$(new_proj setupex epsilon)"
 printf 'stem: epsilon\ndomain: nonexistent\n' > "$P/session.yml"
-run "$P" "$RC" --activity plan --setup domain
-assert_ok_contains "setup mode emits setup segment" 'setup="domain"' '<setup kind="domain">'
-run "$P" "$RC" --activity plan --setup domain
-assert_not_contains "setup mode skips domain/workflow resolution" '<domain' '<workflow'
+mkdomain "$P/.agents/domains" python-style "PROJECT-EXISTING"
+run "$P" "$RC" --activity setup --kind domain --name python-style
+assert_ok_contains "setup surfaces the project-level existing file" \
+    'level="project"' 'PROJECT-EXISTING'
+run "$P" "$RC" --activity setup --kind domain --name python-style
+assert_not_contains "setup ignores consumption selectors" "domain 'nonexistent' not found"
+
+mkdomain "$FAKE_HOME/.agents/domains" python-style "HOME-EXISTING"
+run "$P" "$RC" --activity setup --kind domain --name python-style
+assert_ok_contains "shadowed global copy surfaced and flagged" \
+    'level="home" shadowed="true"' 'HOME-EXISTING' 'PROJECT-EXISTING'
+run "$P" "$RC" --activity setup --kind workflow --name python-style
+assert_ok_contains "workflow kind resolves its own template and cascade dir" \
+    '<template kind="workflow">'
+rm -f "$FAKE_HOME/.agents/domains/python-style.md"
 
 echo "read-section.sh"
 PLAN="$TMP/plan.md"

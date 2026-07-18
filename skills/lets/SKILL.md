@@ -2,8 +2,9 @@
 name: lets
 description: |
   - Stage a piece of work through one collaborative harness.
-  - Invoked as `/lets {verb} {prompt}` where verb is one of discuss, research, plan, execute.
+  - Invoked as `/lets {verb} {prompt}` where verb is one of discuss, research, plan, execute, setup.
   - Use whenever the human says "let's discuss/research/plan/execute".
+  - Use whenever the human wants to author a domain or workflow reference (`/lets setup {domain|workflow} {name}`).
   - Use whenever the human references a stem's notebook.md/research.md/plan.md/execute.md.
   - Use whenever the human wants to think a piece of work through in stages and capture it in durable documents — for code, writing, decisions, research, or personal planning.
 ---
@@ -12,19 +13,21 @@ description: |
 
 This skill is a thin dispatcher: it resolves the verb, the stem, and the target artifact, then runs the router below, whose emitted `<lets_context>` is the playbook for the turn — read the content files only through it, never directly.
 
-| Verb | Artifact | Subagent | Template |
-|---|---|---|---|
-| discuss | `notebook.md` | — (direct conversation) | `./templates/notebook.md` |
-| research | `research.md` | `researcher` | `./templates/research.md` |
-| plan | `plan.md` | `planner` | `./templates/plan.md` |
-| execute | `execute.md` | `executor` | `./templates/execute.md` |
+| Verb | Artifact | Subagent |
+|---|---|---|
+| discuss | `notebook.md` | — (direct conversation) |
+| research | `research.md` | `researcher` |
+| plan | `plan.md` | `planner` |
+| execute | `execute.md` | `executor` |
+| setup | `.agents/{kind}s/{name}.md` | — (guided flow) |
 
 ## Dispatch
 
-Resolve the verb — the input's first token, one of the table's four — and if it is missing or unrecognized, ask which is meant and stop. Read `session.yml` at the project root for `stem`, `note`, and optional `setup`; when it or the stem folder `{index}.{stem}` beside it is absent, ask for a stem name and create them (next index = highest existing + 1, else 1). Scaffold a missing artifact from its template with `status: active` — in setup mode (`setup: domain|workflow` in `session.yml`) the target is `.agents/domains/{stem}.md` or `.agents/workflows/{stem}.md` instead, confirming project vs `$HOME` path before the first write — and if the target's frontmatter is `status: locked`, state that it is read-only and stop. Run the router from the skill's own directory with the project root as the working directory; on nonzero exit surface its stderr verbatim and stop, and on success follow the emitted playbook as written — it carries this verb's cadence, behavior, and any resolved domain/workflow or setup overlay.
+Resolve the verb — the input's first token, one of the table's five — and if it is missing or unrecognized, ask which is meant and stop; for `setup`, parse `{kind} {name}` from the rest of the input (kind `domain` or `workflow`; ask and stop when either is missing), run the router with `--activity setup --kind {kind} --name {name}`, and follow the emitted flow — no stem, no session.yml, no artifact scaffolding. For the four stem verbs, read `session.yml` at the project root for `stem` and `note`; when it or the stem folder `{index}.{stem}` beside it is absent, ask for a stem name and create them (next index = highest existing + 1, else 1); scaffold a missing artifact with `status: active` from `./scripts/resolve-context.sh --activity {verb} --template`, which merges any domain/workflow template overrides into the base, and if the target's frontmatter is `status: locked`, state that it is read-only and stop. Run the router from the skill's own directory with the project root as the working directory; on nonzero exit surface its stderr verbatim and stop, and on success follow the emitted playbook as written — it carries this verb's cadence, behavior, and any resolved domain/workflow content and directives.
 
 ```
-./scripts/resolve-context.sh --activity {verb} --role dispatcher [--setup domain|workflow]
+./scripts/resolve-context.sh --activity {verb} --role dispatcher
+./scripts/resolve-context.sh --activity setup --kind {domain|workflow} --name {name}
 ```
 
 ## Task Contract

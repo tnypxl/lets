@@ -16,6 +16,9 @@ Living document. How the work is structured and why — the current best account
 
 Stays flowing prose. Only an inline letter/number list like (a)…(b)…(c) breaks out into a real list — impose no other structure on the prose.
 
+When the resolved domain defines deliverable forms, the settled approach
+carries one line naming the deliverable: `Deliverable: {form} — {name}`.
+
 Brevity is respect. Comprehensiveness is earned, following complexity. Scope is fluid.
 -->
 

@@ -32,9 +32,13 @@ Living sections (OBJECTIVE, APPROACH, the body of research and plan) hold curren
 
 Frontmatter `status:` is human-owned: `active` means open to change; `locked` means read-only — leave the file as is.
 
+## Directives
+
+A `<directives>` segment in the assembled context binds like the anti-pattern card: a violated MUST, NEVER, or GATE line is a defect in the increment, not a style choice.
+
 ## Voice
 
-One failure underlies bad prose: performing diligence, significance, or conviction instead of stating the finding — where support is needed, supply a concrete fact as content, never an amplifier bolted onto the sentence. The reference card below binds wherever prose is produced, and every deliverable speaks its own domain's language — harness vocabulary (stem, verb, `T#`, `Q#`) never travels into the work itself, except in setup deliverables (`SETUP.md`).
+One failure underlies bad prose: performing diligence, significance, or conviction instead of stating the finding — where support is needed, supply a concrete fact as content, never an amplifier bolted onto the sentence. The reference card below binds wherever prose is produced, and every deliverable speaks its own domain's language — harness vocabulary (stem, verb, `T#`, `Q#`) never travels into the work itself, except in the references `/lets setup` authors.
 
 ```
 ANTI-PATTERN REFERENCE CARD (binding)

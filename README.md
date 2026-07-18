@@ -142,7 +142,7 @@ The harness is `skills/lets/` plus a handful of files at the `.agents/` root tha
 | Path                         | Role                                                      |
 | ---------------------------- | --------------------------------------------------------- |
 | `SKILL.md`                   | Dispatcher; resolves verb/stem/artifact, hands to router. |
-| `SETUP.md`                   | Authoring-mode overlay (domain/workflow setup).           |
+| `SETUP.md`                   | Guided flow for `/lets setup` (authors domain/workflow references). |
 | `reference/CORE.md`          | Shared contract prepended to every slice; carries voice.  |
 | `verbs/discuss.md`           | Verb behavior for `discuss` (writes `notebook.md`).       |
 | `verbs/research.md`          | Verb behavior for `research` (writes `research.md`).      |
@@ -190,7 +190,7 @@ The installer for this footprint: it symlinks `executor.md`, `planner.md`, `rese
 ### Dependency edges
 
 - `SKILL.md` → `scripts/resolve-context.sh` (dispatch to router)
-- `scripts/resolve-context.sh` → `reference/CORE.md` + `verbs/*.md` (+ `SETUP.md` in authoring mode)
+- `scripts/resolve-context.sh` → `reference/CORE.md` + `verbs/*.md` (+ `SETUP.md` and `templates/{domain,workflow}.md` for `--activity setup`)
 - the skill, at each verb's dispatch → `executor.md` / `planner.md` / `researcher.md`
 - the skill, via a stem's `notebook.md` frontmatter → `domains/*.md` (optional, cascading `$PWD/.agents/` then `~/.agents/`)
 - the skill, via a stem's `notebook.md` frontmatter → `workflows/*.md` (optional, same cascade)

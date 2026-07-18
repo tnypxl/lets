@@ -10,17 +10,26 @@ set -euo pipefail
 # being partial-read: the script walks every hop itself.
 #
 # Flags:
-#   --activity {discuss|research|plan|execute}   required
+#   --activity {discuss|research|plan|execute|setup}   required
 #   --role     {dispatcher|worker}                default: dispatcher
 #   --mode     {full|inline}                      optional (research only, today)
-#   --setup    {domain|workflow}                  optional; absent = no overlay
+#   --kind     {domain|workflow}                  required with --activity setup
+#   --name     {reference-name}                   required with --activity setup
+#   --template                                    print the activity's artifact
+#                                                 template with any domain/
+#                                                 workflow overrides merged,
+#                                                 instead of a context document
 #
 # Assembly order (children of the <lets_context> root):
 #   <core>  ->  <verb name>  (role-sliced)
-#           ->  <setup kind> (preamble + {activity} section), if --setup
-#           ->  <domain name> then <workflow name>, unless --setup
-# Root attributes carry the run parameters (activity, role, mode, setup);
-# per-segment frontmatter is stripped on emit.
+#           ->  <domain name> then <workflow name> (running verb's slice)
+#           ->  <directives> (matching typed rules, emitted last)
+# For --activity setup the children are instead:
+#   <core>  ->  <setup kind name>  ->  <template kind>
+#           ->  <existing path level [shadowed]> per same-name cascade hit
+# Root attributes carry the run parameters; per-segment frontmatter is
+# stripped on emit, and a reference's harness-only sections (## directives,
+# ## template:*) never appear inside its segment.
 #
 # Exits nonzero with a message to stderr on any flag, resolution, or
 # coupling failure.
@@ -40,10 +49,12 @@ source "$SCRIPT_DIR/lib/slice.sh"
 ACTIVITY=""
 ROLE="dispatcher"
 MODE=""
-SETUP=""
+KIND=""
+NAME=""
+TEMPLATE=0
 
 usage() {
-    echo "usage: resolve-context.sh --activity {discuss|research|plan|execute} [--role {dispatcher|worker}] [--mode {full|inline}] [--setup {domain|workflow}]" >&2
+    echo "usage: resolve-context.sh --activity {discuss|research|plan|execute|setup} [--role {dispatcher|worker}] [--mode {full|inline}] [--kind {domain|workflow} --name {name}] [--template]" >&2
     exit 1
 }
 
@@ -52,7 +63,9 @@ while [[ $# -gt 0 ]]; do
         --activity) ACTIVITY="${2:-}"; shift 2 ;;
         --role)     ROLE="${2:-}"; shift 2 ;;
         --mode)     MODE="${2:-}"; shift 2 ;;
-        --setup)    SETUP="${2:-}"; shift 2 ;;
+        --kind)     KIND="${2:-}"; shift 2 ;;
+        --name)     NAME="${2:-}"; shift 2 ;;
+        --template) TEMPLATE=1; shift ;;
         *)
             echo "resolve-context: unrecognized argument '$1'" >&2
             usage
@@ -61,13 +74,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$ACTIVITY" in
-    discuss|research|plan|execute) ;;
+    discuss|research|plan|execute|setup) ;;
     "")
         echo "resolve-context: --activity is required" >&2
         usage
         ;;
     *)
-        echo "resolve-context: --activity must be one of discuss|research|plan|execute, got '$ACTIVITY'" >&2
+        echo "resolve-context: --activity must be one of discuss|research|plan|execute|setup, got '$ACTIVITY'" >&2
         exit 1
         ;;
 esac
@@ -88,24 +101,51 @@ case "$MODE" in
         ;;
 esac
 
-case "$SETUP" in
-    ""|domain|workflow) ;;
-    *)
-        echo "resolve-context: --setup must be one of domain|workflow, got '$SETUP'" >&2
-        exit 1
-        ;;
-esac
-
-CORE_FILE="$SKILL_DIR/reference/CORE.md"
-VERB_FILE="$SKILL_DIR/verbs/${ACTIVITY}.md"
-SETUP_FILE="$SKILL_DIR/SETUP.md"
-
-for f in "$CORE_FILE" "$VERB_FILE"; do
-    if [[ ! -f "$f" ]]; then
-        echo "resolve-context: expected content file missing: '$f'" >&2
+if [[ "$ACTIVITY" == "setup" ]]; then
+    case "$KIND" in
+        domain|workflow) ;;
+        "")
+            echo "resolve-context: --activity setup requires --kind {domain|workflow}" >&2
+            exit 1
+            ;;
+        *)
+            echo "resolve-context: --kind must be one of domain|workflow, got '$KIND'" >&2
+            exit 1
+            ;;
+    esac
+    if [[ -z "$NAME" ]]; then
+        echo "resolve-context: --activity setup requires --name {reference-name}" >&2
         exit 1
     fi
-done
+    if [[ ! "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+        echo "resolve-context: --name must be letters, digits, dashes, underscores, got '$NAME'" >&2
+        exit 1
+    fi
+    if (( TEMPLATE )); then
+        echo "resolve-context: --template does not apply to --activity setup" >&2
+        exit 1
+    fi
+elif [[ -n "$KIND" || -n "$NAME" ]]; then
+    echo "resolve-context: --kind/--name apply only to --activity setup" >&2
+    exit 1
+fi
+
+CORE_FILE="$SKILL_DIR/reference/CORE.md"
+SETUP_FILE="$SKILL_DIR/SETUP.md"
+
+if [[ ! -f "$CORE_FILE" ]]; then
+    echo "resolve-context: expected content file missing: '$CORE_FILE'" >&2
+    exit 1
+fi
+
+VERB_FILE=""
+if [[ "$ACTIVITY" != "setup" ]]; then
+    VERB_FILE="$SKILL_DIR/verbs/${ACTIVITY}.md"
+    if [[ ! -f "$VERB_FILE" ]]; then
+        echo "resolve-context: expected content file missing: '$VERB_FILE'" >&2
+        exit 1
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Frontmatter parser — reads the block between the first pair of --- lines.
@@ -216,6 +256,68 @@ strip_frontmatter() {
 # Main
 # ===========================================================================
 
+# ---------------------------------------------------------------------------
+# Setup — authoring a reference is stemless: no session.yml required (the
+# guided flow works from any directory), no verb slice, no consumption
+# selectors. Emit the flow, the kind's authoring template, and any same-name
+# file already on the cascade, then stop.
+# ---------------------------------------------------------------------------
+if [[ "$ACTIVITY" == "setup" ]]; then
+    KIND_TEMPLATE="$SKILL_DIR/templates/${KIND}.md"
+    for f in "$SETUP_FILE" "$KIND_TEMPLATE"; do
+        if [[ ! -f "$f" ]]; then
+            echo "resolve-context: expected content file missing: '$f'" >&2
+            exit 1
+        fi
+    done
+
+    ROOT="$(find_project_root 2>/dev/null)" || true
+    ROOT="${ROOT:-$PWD}"
+    PROJECT_REF="$ROOT/.agents/${KIND}s/${NAME}.md"
+    HOME_REF="$HOME/.agents/${KIND}s/${NAME}.md"
+
+    echo "<lets_context activity=\"setup\" kind=\"$KIND\" name=\"$NAME\">"
+
+    echo "<core>"
+    strip_frontmatter "$CORE_FILE"
+    echo "</core>"
+    echo ""
+
+    echo "<setup kind=\"$KIND\" name=\"$NAME\">"
+    strip_frontmatter "$SETUP_FILE"
+    echo "</setup>"
+    echo ""
+
+    echo "<template kind=\"$KIND\">"
+    cat "$KIND_TEMPLATE"
+    echo "</template>"
+    echo ""
+
+    SHADOWED=""
+    if [[ -f "$PROJECT_REF" && -f "$HOME_REF" ]]; then
+        SHADOWED=1
+    fi
+    if [[ -f "$PROJECT_REF" ]]; then
+        echo "<existing path=\"$PROJECT_REF\" level=\"project\">"
+        cat "$PROJECT_REF"
+        echo "</existing>"
+        echo ""
+    fi
+    if [[ -f "$HOME_REF" ]]; then
+        HOME_ATTRS="path=\"$HOME_REF\" level=\"home\""
+        if [[ -n "$SHADOWED" ]]; then
+            HOME_ATTRS="$HOME_ATTRS shadowed=\"true\""
+        fi
+        echo "<existing $HOME_ATTRS>"
+        cat "$HOME_REF"
+        echo "</existing>"
+        echo ""
+    fi
+
+    echo "</lets_context>"
+    exit 0
+fi
+
 ROOT="$(find_project_root)"
 SESSION="$ROOT/session.yml"
 
@@ -235,73 +337,136 @@ for d in "$ROOT"/[0-9]*."$STEM"/; do
     fi
 done
 
+# In --template mode the artifact being scaffolded may predate the stem
+# folder or notebook (discuss scaffolds the notebook itself); selectors then
+# fall back to session.yml alone. Every other call hard-requires both.
+NOTEBOOK=""
 if [[ -z "$STEM_DIR" ]]; then
-    echo "resolve-context: no stem folder matching '*.$STEM' found under '$ROOT'" >&2
-    exit 1
-fi
-
-NOTEBOOK="$STEM_DIR/notebook.md"
-if [[ ! -f "$NOTEBOOK" ]]; then
-    echo "resolve-context: notebook.md not found at '$NOTEBOOK'" >&2
-    exit 1
+    if (( ! TEMPLATE )); then
+        echo "resolve-context: no stem folder matching '*.$STEM' found under '$ROOT'" >&2
+        exit 1
+    fi
+else
+    NOTEBOOK="$STEM_DIR/notebook.md"
+    if [[ ! -f "$NOTEBOOK" ]]; then
+        if (( ! TEMPLATE )); then
+            echo "resolve-context: notebook.md not found at '$NOTEBOOK'" >&2
+            exit 1
+        fi
+        NOTEBOOK=""
+    fi
 fi
 
 # ---------------------------------------------------------------------------
-# Domain/workflow resolution — skipped entirely in setup mode. Authoring a
-# reference ignores the consumption selectors (`domain:`/`workflow:`); a
-# setup stem is building a reference, not reading against one.
+# Domain/workflow resolution.
 # ---------------------------------------------------------------------------
 DOMAIN_NAME=""
 DOMAIN_FILE=""
 WF_NAME=""
 WF_FILE=""
 
-if [[ -z "$SETUP" ]]; then
+NB_DOMAIN=""
+NB_WORKFLOW=""
+if [[ -n "$NOTEBOOK" ]]; then
     NB_DOMAIN="$(parse_frontmatter "$NOTEBOOK" "domain")"
     NB_WORKFLOW="$(parse_frontmatter "$NOTEBOOK" "workflow")"
-    SESS_DOMAIN="$(parse_yaml_key "$SESSION" "domain")"
-    SESS_WORKFLOW="$(parse_yaml_key "$SESSION" "workflow")"
+fi
+SESS_DOMAIN="$(parse_yaml_key "$SESSION" "domain")"
+SESS_WORKFLOW="$(parse_yaml_key "$SESSION" "workflow")"
 
-    # Resolve workflow first — its preset may supply the domain.
-    WF_NAME="${NB_WORKFLOW:-${SESS_WORKFLOW:-}}"
-    if [[ -n "$WF_NAME" ]]; then
-        WF_FILE="$(resolve_cascade "workflows" "$WF_NAME" "$ROOT")"
-    fi
+# Resolve workflow first — its preset may supply the domain.
+WF_NAME="${NB_WORKFLOW:-${SESS_WORKFLOW:-}}"
+if [[ -n "$WF_NAME" ]]; then
+    WF_FILE="$(resolve_cascade "workflows" "$WF_NAME" "$ROOT")"
+fi
 
-    # Domain — three-tier precedence: notebook > workflow-preset > session.
-    if [[ -n "$NB_DOMAIN" ]]; then
-        DOMAIN_NAME="$NB_DOMAIN"
-    elif [[ -n "$WF_FILE" ]]; then
-        WF_PRESET_DOMAIN="$(parse_frontmatter "$WF_FILE" "domain")"
-        DOMAIN_NAME="${WF_PRESET_DOMAIN:-${SESS_DOMAIN:-}}"
-    else
-        DOMAIN_NAME="${SESS_DOMAIN:-}"
-    fi
+# Domain — three-tier precedence: notebook > workflow-preset > session.
+if [[ -n "$NB_DOMAIN" ]]; then
+    DOMAIN_NAME="$NB_DOMAIN"
+elif [[ -n "$WF_FILE" ]]; then
+    WF_PRESET_DOMAIN="$(parse_frontmatter "$WF_FILE" "domain")"
+    DOMAIN_NAME="${WF_PRESET_DOMAIN:-${SESS_DOMAIN:-}}"
+else
+    DOMAIN_NAME="${SESS_DOMAIN:-}"
+fi
 
-    if [[ -n "$DOMAIN_NAME" ]]; then
-        DOMAIN_FILE="$(resolve_cascade "domains" "$DOMAIN_NAME" "$ROOT")"
-    fi
+if [[ -n "$DOMAIN_NAME" ]]; then
+    DOMAIN_FILE="$(resolve_cascade "domains" "$DOMAIN_NAME" "$ROOT")"
+fi
 
-    # Coupling: domain requires_workflow.
-    if [[ -n "$DOMAIN_FILE" ]]; then
-        REQ_WF="$(parse_frontmatter "$DOMAIN_FILE" "requires_workflow")"
-        if [[ -n "$REQ_WF" ]]; then
-            if [[ -z "$WF_NAME" || "$WF_NAME" != "$REQ_WF" ]]; then
-                echo "resolve-context: domain '$DOMAIN_NAME' requires workflow '$REQ_WF', but no matching workflow is selected" >&2
-                exit 1
-            fi
+# Coupling: domain requires_workflow.
+if [[ -n "$DOMAIN_FILE" ]]; then
+    REQ_WF="$(parse_frontmatter "$DOMAIN_FILE" "requires_workflow")"
+    if [[ -n "$REQ_WF" ]]; then
+        if [[ -z "$WF_NAME" || "$WF_NAME" != "$REQ_WF" ]]; then
+            echo "resolve-context: domain '$DOMAIN_NAME' requires workflow '$REQ_WF', but no matching workflow is selected" >&2
+            exit 1
         fi
     fi
+fi
 
-    # Coupling: workflow requires_domain.
-    if [[ -n "$WF_FILE" ]]; then
-        REQ_DOM="$(parse_frontmatter "$WF_FILE" "requires_domain")"
-        if [[ -n "$REQ_DOM" ]]; then
-            if [[ -z "$DOMAIN_NAME" || "$DOMAIN_NAME" != "$REQ_DOM" ]]; then
-                echo "resolve-context: workflow '$WF_NAME' requires domain '$REQ_DOM', but no matching domain is selected" >&2
-                exit 1
-            fi
+# Coupling: workflow requires_domain.
+if [[ -n "$WF_FILE" ]]; then
+    REQ_DOM="$(parse_frontmatter "$WF_FILE" "requires_domain")"
+    if [[ -n "$REQ_DOM" ]]; then
+        if [[ -z "$DOMAIN_NAME" || "$DOMAIN_NAME" != "$REQ_DOM" ]]; then
+            echo "resolve-context: workflow '$WF_NAME' requires domain '$REQ_DOM', but no matching domain is selected" >&2
+            exit 1
         fi
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Template mode — print the activity's artifact template with reference
+# overrides merged (base -> domain -> workflow; workflow wins) and stop.
+# ---------------------------------------------------------------------------
+if (( TEMPLATE )); then
+    case "$ACTIVITY" in
+        discuss) ARTIFACT="notebook" ;;
+        *)       ARTIFACT="$ACTIVITY" ;;
+    esac
+    BASE_TEMPLATE="$SKILL_DIR/templates/${ARTIFACT}.md"
+    if [[ ! -f "$BASE_TEMPLATE" ]]; then
+        echo "resolve-context: template missing: '$BASE_TEMPLATE'" >&2
+        exit 1
+    fi
+
+    MERGED="$(mktemp "${TMPDIR:-/tmp}/lets-template.XXXXXX")"
+    OVERRIDES="$(mktemp "${TMPDIR:-/tmp}/lets-overrides.XXXXXX")"
+    trap 'rm -f "$MERGED" "$OVERRIDES"' EXIT
+    cat "$BASE_TEMPLATE" > "$MERGED"
+
+    for ref_file in "$DOMAIN_FILE" "$WF_FILE"; do
+        [[ -n "$ref_file" ]] || continue
+        slice_template_overrides "$ref_file" "$ARTIFACT" > "$OVERRIDES"
+        if [[ -s "$OVERRIDES" ]]; then
+            merge_template "$MERGED" "$OVERRIDES" > "$MERGED.next"
+            mv "$MERGED.next" "$MERGED"
+        fi
+    done
+
+    cat "$MERGED"
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Deliverable gate — a domain that defines deliverable forms blocks planning
+# until the notebook APPROACH names one. Discuss gets the generated GATE
+# directive (assembly below); plan gets this hard stop.
+# ---------------------------------------------------------------------------
+DELIVERABLE_FORMS=""
+if [[ -n "$DOMAIN_FILE" ]]; then
+    DELIVERABLE_FORMS="$(deliverable_forms "$DOMAIN_FILE")"
+fi
+
+if [[ -n "$DELIVERABLE_FORMS" && "$ACTIVITY" == "plan" && "$ROLE" == "dispatcher" ]]; then
+    FORMS_ALT="$(printf '%s\n' "$DELIVERABLE_FORMS" | paste -sd'|' -)"
+    if ! slice_section "$NOTEBOOK" "APPROACH" 2>/dev/null \
+            | grep -Eq "Deliverable:[[:space:]]*(${FORMS_ALT})([^A-Za-z0-9_-]|$)"; then
+        FORMS_CSV="$(printf '%s\n' "$DELIVERABLE_FORMS" | paste -sd, - | sed 's/,/, /g')"
+        echo "resolve-context: domain '$DOMAIN_NAME' defines deliverable forms, but the notebook APPROACH names none" >&2
+        echo "  add a 'Deliverable: {form} — {name}' line using one of: $FORMS_CSV — settle it in discuss before planning" >&2
+        exit 1
     fi
 fi
 
@@ -313,41 +478,57 @@ fi
 
 ROOT_ATTRS="activity=\"$ACTIVITY\" role=\"$ROLE\""
 [[ -n "$MODE" ]]  && ROOT_ATTRS="$ROOT_ATTRS mode=\"$MODE\""
-[[ -n "$SETUP" ]] && ROOT_ATTRS="$ROOT_ATTRS setup=\"$SETUP\""
 
 echo "<lets_context $ROOT_ATTRS>"
 
 echo "<core>"
 strip_frontmatter "$CORE_FILE"
 echo "</core>"
+echo ""
 
 echo "<verb name=\"$ACTIVITY\">"
 slice_role "$VERB_FILE" "$ROLE" | strip_frontmatter
 echo "</verb>"
+echo ""
 
-if [[ -n "$SETUP" ]]; then
-    SETUP_SECTION="$(slice_setup_section "$SETUP_FILE" "$ACTIVITY")" || {
-        echo "resolve-context: SETUP.md has no '## $ACTIVITY' section" >&2
-        exit 1
-    }
-    echo "<setup kind=\"$SETUP\">"
-    {
-        slice_setup_preamble "$SETUP_FILE"
-        printf '%s\n' "$SETUP_SECTION"
-    } | strip_frontmatter
-    echo "</setup>"
-else
-    if [[ -n "$DOMAIN_FILE" ]]; then
-        echo "<domain name=\"$DOMAIN_NAME\">"
-        strip_frontmatter "$DOMAIN_FILE"
-        echo "</domain>"
-    fi
+if [[ -n "$DOMAIN_FILE" ]]; then
+    echo "<domain name=\"$DOMAIN_NAME\">"
+    strip_frontmatter "$DOMAIN_FILE" | strip_meta_sections
+    echo "</domain>"
+    echo ""
+fi
 
-    if [[ -n "$WF_FILE" ]]; then
-        echo "<workflow name=\"$WF_NAME\">"
-        strip_frontmatter "$WF_FILE"
-        echo "</workflow>"
+if [[ -n "$WF_FILE" ]]; then
+    echo "<workflow name=\"$WF_NAME\">"
+    strip_frontmatter "$WF_FILE" | slice_workflow_body /dev/stdin "$ACTIVITY"
+    echo "</workflow>"
+    echo ""
+fi
+
+# Typed directives — emitted last so they land with full weight. Each
+# line names its source; a generated GATE holds discuss to naming a
+# deliverable when the domain defines forms.
+DIRECTIVES=""
+if [[ -n "$DOMAIN_FILE" ]]; then
+    DIRECTIVES+="$(slice_directives "$DOMAIN_FILE" "$ACTIVITY" | sed "s/^/- [domain:$DOMAIN_NAME] /")"
+fi
+if [[ -n "$WF_FILE" ]]; then
+    WF_DIRECTIVES="$(slice_directives "$WF_FILE" "$ACTIVITY" | sed "s/^/- [workflow:$WF_NAME] /")"
+    if [[ -n "$WF_DIRECTIVES" ]]; then
+        DIRECTIVES+="${DIRECTIVES:+$'\n'}$WF_DIRECTIVES"
     fi
+fi
+if [[ -n "$DELIVERABLE_FORMS" && "$ACTIVITY" == "discuss" ]]; then
+    FORMS_CSV="$(printf '%s\n' "$DELIVERABLE_FORMS" | paste -sd, - | sed 's/,/, /g')"
+    GATE_LINE="- [domain:$DOMAIN_NAME] GATE the APPROACH is not committable until it carries a 'Deliverable: {form} — {name}' line using one of: $FORMS_CSV"
+    DIRECTIVES+="${DIRECTIVES:+$'\n'}$GATE_LINE"
+fi
+
+if [[ -n "$DIRECTIVES" ]]; then
+    echo "<directives binding=\"true\" activity=\"$ACTIVITY\">"
+    printf '%s\n' "$DIRECTIVES"
+    echo "</directives>"
+    echo ""
 fi
 
 echo "</lets_context>"

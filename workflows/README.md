@@ -11,7 +11,16 @@ A project overrides the default by placing its own `<name>.md`; the files here a
 
 ## Verb sections as signal
 
-The presence of a `## discuss`, `## research`, `## plan`, or `## execute` section in a workflow file is the signal that the workflow shapes that verb; an absent section leaves that verb at its default. There is no separate `stages` list — a parallel enumeration would be a second source of truth and would drift from the sections themselves. Body structure beyond this convention is recommended taste, enforced by nothing.
+The presence of a `## discuss`, `## research`, `## plan`, or `## execute` section in a workflow file is the signal that the workflow shapes that verb; an absent section leaves that verb at its default. There is no separate `stages` list — a parallel enumeration would be a second source of truth and would drift from the sections themselves. Body structure beyond this convention is recommended taste, enforced by nothing. On any given turn the router emits only the running verb's section (plus any non-verb prose), so guidance for one verb never spends another verb's budget.
+
+## Typed sections
+
+A workflow file may also carry two conventionally-named sections the skill consumes mechanically:
+
+- `## directives` — typed per-verb rules, one `- {verb|all}: {MUST|NEVER|GATE} {rule}` item per line. The router emits only the lines matching the running verb, last in the assembled turn, and they bind: a violated directive is a defect, not a style choice. This is where hard completion gates live (see `golang.md`); keep judgment guidance in the per-verb prose sections.
+- `## template:{artifact}` — overrides for a verb artifact's template (`notebook`, `research`, `plan`, `execute`). Each `### {SECTION}` block replaces the same-named section of the base template, or is appended when nothing matches; the task and log-entry shapes are targets too (`### T-SHAPE` in plan, `### ENTRY-SHAPE` in execute). Overrides apply at scaffold time via `resolve-context.sh --template`; workflow overrides apply after domain overrides and win on conflict.
+
+Neither section ever emits into a turn's context. Authoring budget: at most 10 countable sentences per workflow file (a sentence, list item, or table row each count as one).
 
 ## Frontmatter
 

@@ -143,16 +143,17 @@
     },
     {
       "id": 11,
-      "name": "setup-mode-redirect",
-      "prompt": "/lets execute T1 — write the domain file into this project's .agents folder",
-      "expected_output": "In setup mode the deliverable is the domain reference itself: the executor writes .agents/domains/python-style.md, and the stem's own bookkeeping (log entry, plan tick) still happens normally.",
+      "name": "setup-flow",
+      "prompt": "/lets setup domain python-style — standards for how I write Python",
+      "expected_output": "The guided flow runs: the router is invoked with --activity setup, an interview derived from the domain template proceeds one question per turn into ~/.lets/setup/domain.python-style/interview.md, a draft lands in that workspace, and install confirms project vs global before any .agents/ write.",
       "files": ["evals/files/setup-domain"],
       "expectations": [
-        "The file .agents/domains/python-style.md exists in the workspace with a scope section and a formatting section",
-        "The router was run with --setup domain (visible in the transcript command or the <lets_context> root attributes)",
-        "1.python-style/execute.md exists and gained a T1 log entry; 1.python-style/plan.md T1 checklist items are ticked",
-        "The domain deliverable's content lives only in .agents/domains/python-style.md, not copied into the stem documents",
-        "Words like 'domain' and 'workflow' were not scrubbed from the deliverable (setup mode inverts the vocabulary rule)"
+        "The router was run with --activity setup --kind domain --name python-style (visible in the transcript); no stem folder was created and session.yml was not modified",
+        "The interview precedes any drafting, asks one question per turn, and its questions track the emitted template's sections (scope, deliverable forms, standards, directives, template overrides, coupling, install target)",
+        "Answers accumulate in ~/.lets/setup/domain.python-style/interview.md, and the draft is written to ~/.lets/setup/domain.python-style/draft.md in the domain template's shape, before any file under .agents/ is touched",
+        "Install is not silent: the reply asks whether the destination is the project's .agents/domains/ or $HOME/.agents/domains/ before copying the draft there",
+        "Words like 'domain', 'workflow', and 'verb' were not scrubbed from the draft (setup deliverables invert the vocabulary rule)",
+        "No notebook.md, plan.md, or execute.md was created anywhere"
       ]
     },
     {
@@ -166,6 +167,33 @@
         "session.yml now contains 'stem: error-budgets'",
         "Every file under 1.sync-caching/ and 2.reporting/ is byte-identical to the fixture",
         "3.error-budgets/notebook.md is scaffolded from the template with 'status: active' and the OBJECTIVE, APPROACH, and OPEN QUESTIONS sections"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "deliverable-gate",
+      "prompt": "/lets plan",
+      "expected_output": "The research domain defines deliverable forms and the notebook APPROACH names none, so the router exits 1; the skill surfaces the stderr verbatim, spawns no planner, and points back to discuss.",
+      "files": ["evals/files/deliverable-gate"],
+      "expectations": [
+        "The user-facing reply contains the router's stderr including the substrings 'defines deliverable forms' and 'report, brief, decision-memo'",
+        "No planner subagent was spawned and no plan.md was created",
+        "session.yml and 1.churn-study/notebook.md are byte-identical to the fixture (the agent did not silently add a Deliverable line itself)",
+        "The reply points toward settling the deliverable in discuss, not toward editing files directly"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "template-override-scaffold",
+      "prompt": "/lets plan",
+      "expected_output": "The golang workflow's template:plan override reshapes the scaffolded plan: plan.md is scaffolded via the router's --template mode, and every task written follows the overridden T-SHAPE, ending with a Verify checklist step for gofmt, go vet, and tests.",
+      "files": ["evals/files/template-override"],
+      "expectations": [
+        "The transcript shows plan.md scaffolded from resolve-context.sh --activity plan --template, not copied from the base template path directly",
+        "1.retry-tool/plan.md exists with tasks numbered '### T1 - ' sequentially, each starting with '- [ ] Depends on:'",
+        "Every task in plan.md ends with a checklist step containing 'Verify:' naming gofmt, go vet, and tests (the workflow's T-SHAPE override)",
+        "The <directives> segment or plan guidance from the golang workflow is respected: no task bundles a go.mod change with its consumers",
+        "The planner subagent produced unnumbered candidates; the skill assigned T# numbers"
       ]
     }
   ]

@@ -102,7 +102,7 @@ check_files() {
     # path|target pairs, paths relative to repo root
     local specs=(
         "skills/lets/SKILL.md|11"
-        "skills/lets/reference/CORE.md|11"
+        "skills/lets/reference/CORE.md|12"
         "skills/lets/SETUP.md|18"
         "skills/lets/verbs/discuss.md|5"
         "skills/lets/verbs/research.md|9"
@@ -111,10 +111,10 @@ check_files() {
         "planner.md|10"
         "executor.md|8"
         "researcher.md|5"
-        "domains/coding.md|8"
-        "domains/research.md|8"
-        "domains/golang.md|8"
-        "workflows/golang.md|4"
+        "domains/coding.md|14"
+        "domains/research.md|14"
+        "domains/golang.md|14"
+        "workflows/golang.md|10"
         "skills/lets/templates/notebook.md|0"
         "skills/lets/templates/research.md|0"
         "skills/lets/templates/plan.md|0"
@@ -180,6 +180,7 @@ check_turns() {
 
     write_notebook() {
         # $1 = extra frontmatter lines (may be empty)
+        # $2 = deliverable form for the APPROACH line (may be empty)
         {
             echo "---"
             echo "title: fixture"
@@ -188,6 +189,12 @@ check_turns() {
             echo "---"
             echo
             echo "## OBJECTIVE"
+            echo
+            echo "## APPROACH"
+            if [[ -n "${2:-}" ]]; then
+                echo
+                echo "Deliverable: $2 — fixture."
+            fi
         } > "$proj/1.fixture/notebook.md"
     }
 
@@ -204,20 +211,21 @@ check_turns() {
         report_row "$label" "$count" ""
     }
 
-    # selector case name → notebook frontmatter
+    # selector case name → notebook frontmatter → deliverable form
     local cases=(
-        "none|"
-        "coding|domain: coding"
-        "research-dom|domain: research"
-        "golang-dom|domain: golang"
-        "golang-wf|workflow: golang"
+        "none||"
+        "coding|domain: coding|change"
+        "research-dom|domain: research|report"
+        "golang-dom|domain: golang|tool"
+        "golang-wf|workflow: golang|tool"
     )
 
-    local case_spec case_name case_fm verb
+    local case_spec case_name case_fm case_form verb
     for case_spec in "${cases[@]}"; do
         case_name="${case_spec%%|*}"
-        case_fm="${case_spec#*|}"
-        write_notebook "$case_fm"
+        case_form="${case_spec##*|}"
+        case_fm="${case_spec#*|}"; case_fm="${case_fm%|*}"
+        write_notebook "$case_fm" "$case_form"
 
         for verb in discuss research plan execute; do
             run_turn "dispatcher $verb [$case_name]" "$skill_count" \
@@ -234,20 +242,11 @@ check_turns() {
             --activity execute --role worker
     done
 
-    # Setup overlay turns (selectors ignored by the router in setup mode)
-    write_notebook ""
+    # Setup turns — the guided flow, one per kind.
     local kind
     for kind in domain workflow; do
-        for verb in discuss research plan execute; do
-            run_turn "dispatcher $verb [setup:$kind]" "$skill_count" \
-                --activity "$verb" --role dispatcher --setup "$kind"
-        done
-        run_turn "worker research/full [setup:$kind]" "$researcher_count" \
-            --activity research --role worker --mode full --setup "$kind"
-        run_turn "worker plan [setup:$kind]" "$planner_count" \
-            --activity plan --role worker --setup "$kind"
-        run_turn "worker execute [setup:$kind]" "$executor_count" \
-            --activity execute --role worker --setup "$kind"
+        run_turn "setup [$kind]" "$skill_count" \
+            --activity setup --kind "$kind" --name fixture
     done
 }
 

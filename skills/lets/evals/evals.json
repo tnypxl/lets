@@ -173,11 +173,11 @@
       "id": 13,
       "name": "deliverable-gate",
       "prompt": "/lets plan",
-      "expected_output": "The research domain defines deliverable forms and the notebook APPROACH names none, so the router exits 1; the skill surfaces the stderr verbatim, spawns no planner, and points back to discuss.",
+      "expected_output": "The research domain defines deliverable forms and the notebook APPROACH names none, so the router exits 1; the skill surfaces the stderr verbatim, scaffolds nothing, spawns no planner, and points back to discuss.",
       "files": ["evals/files/deliverable-gate"],
       "expectations": [
         "The user-facing reply contains the router's stderr including the substrings 'defines deliverable forms' and 'report, brief, decision-memo'",
-        "No planner subagent was spawned and no plan.md was created",
+        "The dispatcher router ran before any scaffolding: no plan.md exists afterward, not even an empty scaffold, and no planner subagent was spawned",
         "session.yml and 1.churn-study/notebook.md are byte-identical to the fixture (the agent did not silently add a Deliverable line itself)",
         "The reply points toward settling the deliverable in discuss, not toward editing files directly"
       ]

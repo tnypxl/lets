@@ -36,17 +36,15 @@ Every hand-off to `researcher`, `planner`, or `executor` is the assembled contra
 
 ```xml
 <task_contract>
-  {verb}research | plan | execute{/verb}
-  {stem}{stem name}{/stem}
-  {scope}
+  <verb>research | plan | execute</verb>
+  <stem>{stem name}</stem>
+  <scope>
     {bounded description of what this subagent is being asked to do —
      never hand a subagent the full notebook/research/plan; hand it
      the slice relevant to this call}
-  {/scope}
+  </scope>
   <upstream>
-    <!-- omit any that don't apply; embed content, never a bare path to
-         re-read. For T#/Q# ids, get the exact slice via:
-         {skill-dir}/scripts/read-section.sh {file} {T#|Q#} -->
+    <!-- omit any that don't apply; embed content, never a bare path to re-read. For T#/Q# ids, get the exact slice via: {skill-dir}/scripts/read-section.sh {file} {T#|Q#} -->
     <approach_ref>{notebook.md APPROACH section, pasted verbatim}</approach_ref>
     <research_ref>{relevant excerpt of research.md, pasted verbatim}</research_ref>
     <plan_ref>{output of {skill-dir}/scripts/read-section.sh plan.md T#, for the task(s) in scope}</plan_ref>

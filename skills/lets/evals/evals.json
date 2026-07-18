@@ -1,0 +1,172 @@
+{
+  "skill_name": "lets",
+  "evals": [
+    {
+      "id": 1,
+      "name": "cold-start-scaffold",
+      "prompt": "/lets discuss caching for the sync service — call the stem sync-caching",
+      "expected_output": "The skill creates session.yml (stem: sync-caching) and 1.sync-caching/notebook.md from the template, runs the router, and opens the discussion by advancing at most one or two threads before handing the move back.",
+      "files": [],
+      "expectations": [
+        "session.yml exists at the workspace root and contains 'stem: sync-caching'",
+        "Directory 1.sync-caching/ exists and contains notebook.md with frontmatter 'status: active' and the sections OBJECTIVE, APPROACH, and OPEN QUESTIONS",
+        "The transcript shows resolve-context.sh run with --activity discuss --role dispatcher before any discussion content is produced",
+        "The reply advances at most two threads (for example a proposed objective plus one or two questions), not a filled OBJECTIVE plus APPROACH plus a batch of questions in one turn",
+        "Any items added to OPEN QUESTIONS are numbered from Q1 upward with no gaps",
+        "No research.md, plan.md, or execute.md was created"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "unknown-verb-stops",
+      "prompt": "/lets deploy the new landing page",
+      "expected_output": "The skill recognizes 'deploy' as no verb, asks which of discuss/research/plan/execute is meant, and stops without touching the filesystem.",
+      "files": [],
+      "expectations": [
+        "The reply asks which of discuss, research, plan, or execute is intended",
+        "No session.yml and no stem folder was created in the workspace",
+        "resolve-context.sh was never run (no <lets_context> output appears in the transcript)",
+        "The turn ends with the question; no deployment work or planning is attempted"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "discuss-ledger-discipline",
+      "prompt": "/lets discuss — for Q1, yes: paying customers only. Also, we should think about how cancellations mid-month affect the report.",
+      "expected_output": "Q1 is resolved in place with a nested RESOLUTION line, the cancellation concern lands as a new Q3 (or is taken up as the turn's second thread), and nothing else in the ledger is rewritten.",
+      "files": ["evals/files/discuss-ledger"],
+      "expectations": [
+        "In 1.churn-report/notebook.md, Q1 is now '- [x]' with a nested '- RESOLUTION:' line indented beneath it, and its question text is unchanged",
+        "The Q2 line is byte-identical to the fixture and still unresolved",
+        "If a cancellations question was added, it is numbered Q3; Q1 and Q2 keep their numbers (no renumbering anywhere in the ledger)",
+        "At most two of OBJECTIVE, APPROACH, and a single Q# changed this turn",
+        "No research.md, plan.md, or execute.md was created"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "plan-flow-contracts",
+      "prompt": "/lets plan",
+      "expected_output": "The skill hands the planner a bounded task contract with the committed approach, receives unnumbered candidate tasks, then writes plan.md itself, assigning T# numbers and metering the return.",
+      "files": ["evals/files/plan-flow"],
+      "expectations": [
+        "The planner subagent was invoked with a task contract containing the notebook's APPROACH content embedded verbatim, not a bare file path and not the full notebook (the contract omits the OPEN QUESTIONS section)",
+        "The planner's return contains '## Candidate Tasks' with unnumbered task titles and 'Depends on:' references by title; no T# numbers appear in the planner's own output",
+        "1.retry-policy/plan.md exists with tasks numbered '### T1 - ' sequentially and without gaps",
+        "Every task in plan.md has '- [ ] Depends on:' as the first checklist item",
+        "No task in plan.md bundles two distinct deliverables into one outcome (no title joining separate deliverables with 'and')",
+        "plan.md does not contain the heading '## Candidate Tasks' (the planner's return was not pasted wholesale)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "plan-tnumber-permanence",
+      "prompt": "/lets plan — add tasks covering the CSV export from the approach; the export depends on the schema task already in the plan.",
+      "expected_output": "New tasks are appended starting at T4 with dependencies cited by T#; the three existing tasks keep their numbers, order, text, and checkbox states.",
+      "files": ["evals/files/plan-continuation"],
+      "expectations": [
+        "New tasks in 1.reporting/plan.md are numbered starting at T4 with no gaps",
+        "The fixture's '### T1 - Define report schema', '### T2 - Build query layer', and '### T3 - Render HTML report' headings appear unchanged and in the same order",
+        "No existing task was renumbered, deleted, or had its body rewritten; T1's completed checkboxes remain '[x]'",
+        "At least one new task cites its prerequisite as an existing T# (for example 'Depends on: T1' or 'Depends on: T2'), not by title",
+        "The planner subagent was used to produce candidates before plan.md was updated"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "execute-flow-writer-separation",
+      "prompt": "/lets execute T2",
+      "expected_output": "The executor gets only the T2 slice, implements --shout in greet.sh, and reports back; the skill itself appends the T2 log entry and ticks the plan checkbox. No harness vocabulary leaks into greet.sh.",
+      "files": ["evals/files/execute-flow"],
+      "expectations": [
+        "The executor subagent's task contract contains the '### T2 - Add --shout flag' block (as sliced by read-section.sh), not the full plan.md content",
+        "Running 'bash greet.sh --shout alice' in the workspace prints 'HELLO, ALICE', and 'bash greet.sh alice' still prints 'hello, alice'",
+        "1.greeting-cli/execute.md gained exactly one new entry starting '### T2 - ' containing Done, Outcome, and Files touched fields; the fixture's T1 entry is byte-identical",
+        "In 1.greeting-cli/plan.md, T2's checklist items are now '[x]' and no other line changed",
+        "The log entry and plan checkbox were written by the main agent after the executor's report returned, not by the executor subagent",
+        "greet.sh contains none of: 'T1', 'T2', 'stem', 'notebook' (harness vocabulary does not leak into the work artifact)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "locked-artifact-refusal",
+      "prompt": "/lets plan — add a task to also support JSON output",
+      "expected_output": "The skill sees plan.md is status: locked, declares it read-only, and stops without modifying anything or spawning the planner.",
+      "files": ["evals/files/locked-plan"],
+      "expectations": [
+        "The reply states the plan is locked (read-only) and stops",
+        "1.greeting-cli/plan.md is byte-identical to the fixture",
+        "No planner subagent was spawned",
+        "session.yml and 1.greeting-cli/notebook.md are unmodified"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "router-error-verbatim",
+      "prompt": "/lets discuss the API surface",
+      "expected_output": "resolve-context.sh exits nonzero because the api-design domain requires the tdd workflow and none is selected; the skill surfaces that stderr verbatim and stops without fixing anything silently.",
+      "files": ["evals/files/router-error"],
+      "expectations": [
+        "The user-facing reply contains the router's stderr message including the substring \"requires workflow 'tdd'\"",
+        "The agent stops after surfacing the error; no discussion content about the API surface is produced",
+        "No workspace file was modified: session.yml, 1.api-surface/notebook.md, and .agents/domains/api-design.md are byte-identical to the fixture",
+        "The agent did not silently repair the failure (no workflow file created, no frontmatter edited)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "research-flow-metered",
+      "prompt": "/lets research how the project handles retries and failure recovery today, so the approach can commit against reality",
+      "expected_output": "The researcher runs a bounded full-mode investigation over the workspace files and returns FINDINGS/IMPLICATIONS/GAPS; the skill meters the return into research.md rather than dumping it.",
+      "files": ["evals/files/research-flow"],
+      "expectations": [
+        "The researcher subagent was invoked for a full investigation with a bounded scope (retries and failure recovery), not handed the entire notebook",
+        "The researcher's return contains a '## FINDINGS' section with file:line-style sources, and separate '## IMPLICATIONS' and '## GAPS' sections",
+        "1.retry-policy/research.md exists with frontmatter 'status: active'",
+        "If the researcher returned more threads than were written, research.md holds a metered subset and the reply names what remains; the return was not pasted wholesale",
+        "Every file path cited in research.md exists in the workspace (no invented sources)"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "drift-stop-and-flag",
+      "prompt": "/lets execute T2",
+      "expected_output": "The executor discovers the app reads JSON, not YAML as the approach claims, raises drift instead of inventing a YAML loader, and the skill stops and flags the contradiction rather than logging success.",
+      "files": ["evals/files/drift"],
+      "expectations": [
+        "The false YAML premise (the config is JSON) is raised as drift before any implementation happens — by the executor's report, or by the dispatcher checking ground truth before dispatch; no YAML loader is invented either way",
+        "The main agent stops and flags the contradiction to the human; it does not spawn further executors or continue to other tasks",
+        "No T2 entry claiming success was appended to 1.config-migration/execute.md; the fixture's T1 entry is byte-identical",
+        "In 1.config-migration/plan.md, T2's checklist items remain '[ ]' and no completed task or log entry was edited",
+        "The reply points toward re-running the appropriate verb (revisiting discuss and/or plan), not toward editing the ledger"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "setup-mode-redirect",
+      "prompt": "/lets execute T1 — write the domain file into this project's .agents folder",
+      "expected_output": "In setup mode the deliverable is the domain reference itself: the executor writes .agents/domains/python-style.md, and the stem's own bookkeeping (log entry, plan tick) still happens normally.",
+      "files": ["evals/files/setup-domain"],
+      "expectations": [
+        "The file .agents/domains/python-style.md exists in the workspace with a scope section and a formatting section",
+        "The router was run with --setup domain (visible in the transcript command or the <lets_context> root attributes)",
+        "1.python-style/execute.md exists and gained a T1 log entry; 1.python-style/plan.md T1 checklist items are ticked",
+        "The domain deliverable's content lives only in .agents/domains/python-style.md, not copied into the stem documents",
+        "Words like 'domain' and 'workflow' were not scrubbed from the deliverable (setup mode inverts the vocabulary rule)"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "next-index-creation",
+      "prompt": "/lets discuss error budgets for the API — new stem, call it error-budgets",
+      "expected_output": "The skill creates 3.error-budgets/ (highest existing index plus one), repoints session.yml, scaffolds the notebook, and leaves the two existing stems untouched.",
+      "files": ["evals/files/next-index"],
+      "expectations": [
+        "Directory 3.error-budgets/ exists (index is highest existing + 1)",
+        "session.yml now contains 'stem: error-budgets'",
+        "Every file under 1.sync-caching/ and 2.reporting/ is byte-identical to the fixture",
+        "3.error-budgets/notebook.md is scaffolded from the template with 'status: active' and the OBJECTIVE, APPROACH, and OPEN QUESTIONS sections"
+      ]
+    }
+  ]
+}

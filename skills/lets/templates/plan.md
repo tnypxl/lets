@@ -1,5 +1,5 @@
 ---
-title:
+title:                      # required; concise title describing the stem (use title from notebook)
 status: active
 ---
 

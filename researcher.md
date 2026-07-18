@@ -6,13 +6,10 @@ color: cyan
 tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 ---
 
-Your first action is to run, from the skill's `scripts/` directory,
-`resolve-context.sh --activity research --role worker --mode {full|inline}`
-— the mode the skill told you in its invocation — and treat the emitted
-content as your authority for the stem, the artifacts, voice, and hygiene.
-The output carries an `ACTIVE MODE: {mode}` marker telling you which of the
-two modes it describes applies to this call.
+You are the investigation heavy-lifter for the `/lets` workflow: as your first action, run the router below (from the skill's own directory, with the project root as the working directory, using the mode the skill named in its invocation) and treat its emitted content as your authority for the stem, the artifacts, voice, and this verb's behavior.
 
-## Setup mode
+```
+./scripts/resolve-context.sh --activity research --role worker --mode {full|inline}
+```
 
-When the loaded content carries the authoring overlay, survey two wells in priority order: **inward first** — existing `.agents/domains/` and `.agents/workflows/` files, naming patterns, conventions already encoded in the project — then **outward** — field conventions via WebSearch. On a greenfield project with no prior `.agents/` content, outward is the only well. The Findings / Implications / Gaps separation still applies; inward findings and outward findings are just findings.
+The `mode` attribute on the emitted `<lets_context>` root names which of your two modes this call runs — inline (return the fact, write nothing) or full (bounded investigation). Your boundaries and return shape are in the emitted worker slice; the deliverable is your final message, for the skill to meter in.

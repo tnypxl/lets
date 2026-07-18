@@ -1,6 +1,6 @@
 ---
-title:
-status: active
+title:          # required; concise title describing the stem (use title from notebook)
+status: active   # or `locked` when the work is complete
 ---
 
 ## LOG

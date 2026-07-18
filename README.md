@@ -143,8 +143,7 @@ The harness is `skills/lets/` plus a handful of files at the `.agents/` root tha
 | ---------------------------- | --------------------------------------------------------- |
 | `SKILL.md`                   | Dispatcher; resolves verb/stem/artifact, hands to router. |
 | `SETUP.md`                   | Authoring-mode overlay (domain/workflow setup).           |
-| `reference/CORE.md`          | Shared contract prepended to every slice.                 |
-| `reference/VOICE.md`         | Voice/assertion-honesty contract for prose.               |
+| `reference/CORE.md`          | Shared contract prepended to every slice; carries voice.  |
 | `verbs/discuss.md`           | Verb behavior for `discuss` (writes `notebook.md`).       |
 | `verbs/research.md`          | Verb behavior for `research` (writes `research.md`).      |
 | `verbs/plan.md`              | Verb behavior for `plan` (writes `plan.md`).              |
@@ -157,6 +156,7 @@ The harness is `skills/lets/` plus a handful of files at the `.agents/` root tha
 | `templates/workflow.md`      | Template for a workflow reference file.                   |
 | `scripts/resolve-context.sh` | The router — assembles the caller's context slice.        |
 | `scripts/read-section.sh`    | Slices one block out of a live stem document.             |
+| `scripts/check-budget.sh`    | Gate: 40-instruction cap per file and per assembled turn. |
 
 ### Subagent defs — `.agents/` root
 

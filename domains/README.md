@@ -9,7 +9,7 @@ $PWD/.agents/domains/<name>.md          # project override — wins
 
 A project overrides the default by placing its own `<name>.md`; the files here are the floor. A reference describes the *standards a domain's deliverables follow* — not the work itself, and not the harness. The skill reads these; it never writes them.
 
-Prose deliverables carry a separate, standing voice baseline from `../skills/lets/reference/VOICE.md`, which applies whether or not a stem selects a domain. A selected domain adds standards on top of that baseline; it does not override it.
+Prose deliverables carry a standing voice baseline from `../skills/lets/reference/CORE.md` § Voice, which applies whether or not a stem selects a domain. A selected domain adds standards on top of that baseline; it does not override it.
 
 A domain file may declare that it requires a companion workflow by setting `requires_workflow:` in its frontmatter:
 

@@ -1,5 +1,5 @@
 ---
-title:
+title:             # required; concise title describing the stem
 status: active
 domain:            # optional; a name resolved against the domain cascade
 workflow:          # optional; a name resolved against the workflow cascade

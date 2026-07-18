@@ -222,14 +222,28 @@ resolve_cascade() {
 }
 
 # ---------------------------------------------------------------------------
-# Project root — walk up from $PWD looking for session.yml.
+# Project root — walk up from $PWD looking for session.yml. Two guards keep
+# a wrong cwd loud instead of silently binding someone else's session.yml:
+# a cwd inside the skill install itself (the `cd {skill-dir} && ...` misfire)
+# is refused outright, and the walk stops at a repo boundary — a .git without
+# a session.yml beside it means anything above belongs to another project.
 # ---------------------------------------------------------------------------
 find_project_root() {
+    case "$PWD/" in
+        "$SKILL_DIR"/*)
+            echo "resolve-context: \$PWD is inside the skill directory '$SKILL_DIR' — invoke this script by path from the project root; never cd into the skill" >&2
+            exit 1
+            ;;
+    esac
     local dir="$PWD"
     while [[ "$dir" != "/" ]]; do
         if [[ -f "$dir/session.yml" ]]; then
             echo "$dir"
             return 0
+        fi
+        if [[ -e "$dir/.git" ]]; then
+            echo "resolve-context: no session.yml between '$PWD' and the repo root '$dir' — not searching above it" >&2
+            exit 1
         fi
         dir="$(dirname "$dir")"
     done

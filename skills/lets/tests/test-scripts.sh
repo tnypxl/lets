@@ -118,6 +118,24 @@ echo "resolve-context.sh — session/stem resolution"
 run "$EMPTY" "$RC" --activity discuss
 assert_fails_with "no session.yml" "no session.yml found"
 
+run "$SKILL_DIR" "$RC" --activity discuss
+assert_fails_with "cwd inside skill dir refused" "never cd into the skill"
+
+run "$SKILL_DIR/scripts" "$RC" --activity plan --template
+assert_fails_with "skill-dir guard covers subdirs and --template" "never cd into the skill"
+
+# A .git boundary without session.yml stops the walk — the outer stray
+# session.yml above the repo must not be silently adopted.
+BOUND="$TMP/bound"; mkdir -p "$BOUND/inner/src" "$BOUND/inner/.git"
+printf 'stem: stray\n' > "$BOUND/session.yml"
+run "$BOUND/inner/src" "$RC" --activity discuss
+assert_fails_with "walk stops at repo boundary" "not searching above it"
+
+# But a project subdir with no boundary in between still resolves upward.
+SUBP="$(new_proj subp deep)"; mkdir -p "$SUBP/1.deep/nested"
+run "$SUBP/1.deep/nested" "$RC" --activity discuss
+assert_ok_contains "subdir resolves to project root" "<lets_context activity=\"discuss\""
+
 NOSTEM="$TMP/nostem"; mkdir -p "$NOSTEM"
 printf 'note: hi\n' > "$NOSTEM/session.yml"
 run "$NOSTEM" "$RC" --activity discuss

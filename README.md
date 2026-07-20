@@ -166,7 +166,7 @@ The harness is `skills/lets/` plus a handful of files at the `.agents/` root tha
 | `planner.md`    | Decomposition heavy-lifter for `/lets plan`.                 |
 | `researcher.md` | Investigation heavy-lifter for discuss and `/lets research`. |
 
-Each carries YAML frontmatter (`name:`/`description:`/`model:`/`color:`). `install.sh` detects any root `*.md` starting with `---` and symlinks it into `$CLAUDE_HOME/agents/`.
+Each carries YAML frontmatter (`name:`/`description:`/`model:`/`color:`). `lets.sh --claude` detects any root `*.md` starting with `---` and copies it into `$CLAUDE_HOME/agents/`.
 
 ### Shared reference — `.agents/` root
 
@@ -179,13 +179,13 @@ Each carries YAML frontmatter (`name:`/`description:`/`model:`/`color:`). `insta
 | `workflows/README.md` | Explains the workflow cascade mechanism; not itself a workflow. |
 | `workflows/golang.md` | Workflow preset tuning the four verbs for Go work.              |
 
-A stem opts into a domain/workflow via `notebook.md` frontmatter; the skill resolves the name against `$PWD/.agents/<kind>/<name>.md` first, then `~/.agents/<kind>/<name>.md`. `install.sh` symlinks `domains/` and `workflows/` wholesale into `$AGENTS_HOME` (default `~/.agents/`).
+A stem opts into a domain/workflow via `notebook.md` frontmatter; the skill resolves the name against `$PWD/.agents/<kind>/<name>.md` first, then `~/.agents/<kind>/<name>.md`. `lets.sh` copies `domains/` and `workflows/` wholesale into `$AGENTS_HOME` (default `~/.agents/`, or `$PWD/.agents/` with `--project`) on every run, regardless of target. `lets.sh --agents` additionally copies `skills/lets/` itself into `$AGENTS_HOME/skills/`, for agent tooling that reads the `.agents/` cascade root instead of `.claude/`.
 
 Domains and workflows can be mixed and matched. The happy path is one that pairs a "writing" domain to also with a "writing" workflow. Though this is ultimately your choice
 
-### `install.sh`
+### `lets.sh`
 
-The installer for this footprint: it symlinks `executor.md`, `planner.md`, `researcher.md`, `skills/lets/`, `domains/`, and `workflows/` into `~/.claude` and `~/.agents`. An extraction needs it, or an equivalent, to stay installable.
+The installer for this footprint: `--claude` copies `executor.md`, `planner.md`, `researcher.md`, and `skills/lets/` into `~/.claude`; `--agents` copies `skills/lets/` into `~/.agents` instead; both always copy `domains/` and `workflows/` into `~/.agents`. `--project` scopes the `~/.agents` side to `$PWD/.agents`. An extraction needs it, or an equivalent, to stay installable.
 
 ### Dependency edges
 
@@ -194,4 +194,4 @@ The installer for this footprint: it symlinks `executor.md`, `planner.md`, `rese
 - the skill, at each verb's dispatch → `executor.md` / `planner.md` / `researcher.md`
 - the skill, via a stem's `notebook.md` frontmatter → `domains/*.md` (optional, cascading `$PWD/.agents/` then `~/.agents/`)
 - the skill, via a stem's `notebook.md` frontmatter → `workflows/*.md` (optional, same cascade)
-- `install.sh` → `executor.md`, `planner.md`, `researcher.md`, `skills/lets/`, `domains/`, `workflows/`
+- `lets.sh` → `executor.md`, `planner.md`, `researcher.md`, `skills/lets/`, `domains/`, `workflows/`

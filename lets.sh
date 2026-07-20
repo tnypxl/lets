@@ -1,22 +1,27 @@
 #!/usr/bin/env bash
 #
-# Copy this directory's agents and skills into a Claude config dir, and
-# expose the domain/workflow cascade floor into ~/.agents. Each dest placed
-# this way is recorded in a manifest, read back on later runs to tell a
-# fresh dest from one edited since install.
+# Copy this directory's agents and skills into a Claude config dir, and/or
+# the skill plus the domain/workflow cascade floor into an agents config
+# dir. Each dest placed this way is recorded in a manifest, read back on
+# later runs to tell a fresh dest from one edited since install.
 #
-#   install.sh --claude                    install into ~/.claude and ~/.agents
-#   install.sh --claude --uninstall        remove the copies recorded in
-#                                           the manifest
-#   install.sh --claude --force-reinstall  replace dests that have diverged
-#                                           since install (add --yes/-y to
-#                                           skip the confirmation prompt)
+#   lets.sh --claude                    install into ~/.claude and ~/.agents
+#   lets.sh --agents                    install skill + cascade floor into ~/.agents
+#   lets.sh --claude --agents           both of the above in one run
+#   lets.sh --agents --project          install skill + cascade floor into ./.agents
+#   lets.sh --claude --uninstall        remove the copies recorded in
+#                                        the manifest
+#   lets.sh --claude --force-reinstall  replace dests that have diverged
+#                                        since install (add --yes/-y to
+#                                        skip the confirmation prompt)
 #
-# Agents are the *.md files in this directory that begin with YAML frontmatter
-# (SYSTEM.md and other plain docs are ignored). Skills are the subdirectories of
-# ./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored). A skill
-# installs as its whole directory (one dest); agents, shared skill docs, and
-# the domain/workflow cascade floor (./domains/, ./workflows/) install per file.
+# At least one of --claude / --agents is required. Agents are the *.md files
+# in this directory that begin with YAML frontmatter (SYSTEM.md and other
+# plain docs are ignored) and only install under --claude. Skills are the
+# subdirectories of ./skills/ that contain a SKILL.md (so ./skills/scripts/
+# is ignored); a skill installs as its whole directory (one dest), under
+# --claude, --agents, or both. The domain/workflow cascade floor (./domains/,
+# ./workflows/) always installs into the agents config dir, per file.
 #
 # A dest already in place and unchanged since install is left alone; one that
 # has diverged (edited since install, or never ours) is skipped with a warning
@@ -30,7 +35,9 @@
 # detect divergence and on uninstall to remove exactly what was placed.
 #
 # Override the Claude config root with CLAUDE_HOME (defaults to ~/.claude).
-# Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents).
+# Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents,
+# or ./.agents when --project is given -- --project has no effect on
+# CLAUDE_HOME, which stays global).
 set -euo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,23 +61,28 @@ unset _n
 
 usage() {
   cat <<'EOF'
-Copy this directory's agents and skills into a Claude config dir, and
-expose the domain/workflow cascade floor into ~/.agents. Each dest placed
-this way is recorded in a manifest, read back on later runs to tell a
-fresh dest from one edited since install.
+Copy this directory's agents and skills into a Claude config dir, and/or
+the skill plus the domain/workflow cascade floor into an agents config
+dir. Each dest placed this way is recorded in a manifest, read back on
+later runs to tell a fresh dest from one edited since install.
 
-  install.sh --claude                    install into ~/.claude and ~/.agents
-  install.sh --claude --uninstall        remove the copies recorded in
-                                          the manifest
-  install.sh --claude --force-reinstall  replace dests that have diverged
-                                          since install (add --yes/-y to
-                                          skip the confirmation prompt)
+  lets.sh --claude                    install into ~/.claude and ~/.agents
+  lets.sh --agents                    install skill + cascade floor into ~/.agents
+  lets.sh --claude --agents           both of the above in one run
+  lets.sh --agents --project          install skill + cascade floor into ./.agents
+  lets.sh --claude --uninstall        remove the copies recorded in
+                                       the manifest
+  lets.sh --claude --force-reinstall  replace dests that have diverged
+                                       since install (add --yes/-y to
+                                       skip the confirmation prompt)
 
-Agents are the *.md files in this directory that begin with YAML frontmatter
-(SYSTEM.md and other plain docs are ignored). Skills are the subdirectories of
-./skills/ that contain a SKILL.md (so ./skills/scripts/ is ignored). A skill
-installs as its whole directory (one dest); agents, shared skill docs, and
-the domain/workflow cascade floor (./domains/, ./workflows/) install per file.
+At least one of --claude / --agents is required. Agents are the *.md files
+in this directory that begin with YAML frontmatter (SYSTEM.md and other
+plain docs are ignored) and only install under --claude. Skills are the
+subdirectories of ./skills/ that contain a SKILL.md (so ./skills/scripts/
+is ignored); a skill installs as its whole directory (one dest), under
+--claude, --agents, or both. The domain/workflow cascade floor (./domains/,
+./workflows/) always installs into the agents config dir, per file.
 
 A dest already in place and unchanged since install is left alone; one that
 has diverged (edited since install, or never ours) is skipped with a warning
@@ -84,7 +96,9 @@ line per dest, a content hash and its absolute path -- read on reinstall to
 detect divergence and on uninstall to remove exactly what was placed.
 
 Override the Claude config root with CLAUDE_HOME (defaults to ~/.claude).
-Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents).
+Override the agents cascade root with AGENTS_HOME (defaults to ~/.agents,
+or ./.agents when --project is given -- --project has no effect on
+CLAUDE_HOME, which stays global).
 EOF
 }
 
@@ -208,18 +222,30 @@ classify_dest() {
 enumerate_pairs() {
   local src f rel group dir
 
-  echo "Agents -> ${CLAUDE_HOME/#$HOME/\~}/agents/" >&2
-  while IFS= read -r src; do
-    printf '%s\t%s\n' "$src" "$CLAUDE_HOME/agents/$(basename "$src")"
-  done < <(collect_agents)
+  if [[ -n "${want_claude:-}" ]]; then
+    echo "Agents -> ${CLAUDE_HOME/#$HOME/\~}/agents/" >&2
+    while IFS= read -r src; do
+      printf '%s\t%s\n' "$src" "$CLAUDE_HOME/agents/$(basename "$src")"
+    done < <(collect_agents)
 
-  echo "Skills -> ${CLAUDE_HOME/#$HOME/\~}/skills/" >&2
-  while IFS= read -r src; do
-    printf '%s\t%s\n' "$src" "$CLAUDE_HOME/skills/$(basename "$src")"
-  done < <(collect_skills)
-  while IFS= read -r src; do
-    printf '%s\t%s\n' "$src" "$CLAUDE_HOME/skills/$(basename "$src")"
-  done < <(collect_skill_docs)
+    echo "Skills -> ${CLAUDE_HOME/#$HOME/\~}/skills/" >&2
+    while IFS= read -r src; do
+      printf '%s\t%s\n' "$src" "$CLAUDE_HOME/skills/$(basename "$src")"
+    done < <(collect_skills)
+    while IFS= read -r src; do
+      printf '%s\t%s\n' "$src" "$CLAUDE_HOME/skills/$(basename "$src")"
+    done < <(collect_skill_docs)
+  fi
+
+  if [[ -n "${want_agents:-}" ]]; then
+    echo "Skills -> ${AGENTS_HOME/#$HOME/\~}/skills/" >&2
+    while IFS= read -r src; do
+      printf '%s\t%s\n' "$src" "$AGENTS_HOME/skills/$(basename "$src")"
+    done < <(collect_skills)
+    while IFS= read -r src; do
+      printf '%s\t%s\n' "$src" "$AGENTS_HOME/skills/$(basename "$src")"
+    done < <(collect_skill_docs)
+  fi
 
   echo "Cascade floor -> ${AGENTS_HOME/#$HOME/\~}/" >&2
   for group in domains workflows; do
@@ -350,10 +376,12 @@ install_uninstall() {
   echo "  manifest -> ${AGENTS_HOME/#$HOME/\~}/.lets-lock (cleared)"
 }
 
-target="" action="install" force="" assume_yes=""
+want_claude="" want_agents="" project="" action="install" force="" assume_yes=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --claude)          target="claude" ;;
+    --claude)          want_claude=1 ;;
+    --agents)          want_agents=1 ;;
+    --project)         project=1 ;;
     --uninstall)       action="uninstall" ;;
     --force-reinstall) force=1 ;;
     --yes|-y)          assume_yes=1 ;;
@@ -363,7 +391,8 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-[[ -n "$target" ]] || { echo "error: a target is required (--claude)" >&2; usage >&2; exit 2; }
+[[ -n "$want_claude" || -n "$want_agents" ]] || { echo "error: a target is required (--claude and/or --agents)" >&2; usage >&2; exit 2; }
+[[ -n "$project" ]] && AGENTS_HOME="$PWD/.agents"
 
 case "$action" in
   install)   install_copy ;;

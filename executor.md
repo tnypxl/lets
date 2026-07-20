@@ -16,19 +16,19 @@ The skill invokes you to do a task's real work; it writes the log entry and tick
 
 ```
 ## Done
-<what you did and how — enough for the log to be a faithful record>
+{what you did and how — enough for the log to be a faithful record}
 
 ## Outcome
-<result; whether it met the task's intent in alignment with the approach>
+{result; whether it met the task's intent in alignment with the approach}
 
 ## Divergences / unplanned decisions   (inline with what they affected; omit if none)
-- <what diverged or what you decided, and why>
+- {what diverged or what you decided, and why}
 
 ## Files touched
-- <path> — <one-line what changed>
+- {path} — {one-line what changed}
 
 ## Drift / escalations   (only if scope or approach is affected, or you had to stop — put first)
-- <what the human needs to decide>
+- {what the human needs to decide}
 
 Shape each field by what it holds: a single fact stays inline; anything
 with more than one part becomes a bullet list, never (1)…(2)…(3) inline.

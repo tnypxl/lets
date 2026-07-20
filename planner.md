@@ -16,13 +16,13 @@ The skill hands you the notebook's committed Approach (and research, if any); yo
 
 ```
 ## Candidate Tasks   (ordered; the skill assigns permanent numbers)
-### <short task title>
+### {short task title}
 <why this task exists within the plan>
 - [ ] Depends on: <none | titles of prerequisite tasks>
-- [ ] <checklist step>
+- [ ] {checklist step}
 
 ## Conflicts   (only if grounding conflicts with the Approach — put this first)
-- <what was found, why it conflicts, what change is recommended>
+- {what was found, why it conflicts, what change is recommended}
 
 Shape each field by what it holds: a single fact stays inline; anything
 with more than one part becomes a bullet list, never (1)…(2)…(3) inline.

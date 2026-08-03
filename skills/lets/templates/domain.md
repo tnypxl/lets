@@ -1,9 +1,6 @@
 ---
 # requires_workflow: {name}
 # Uncomment and set when this domain's deliverables require a companion workflow.
-# The skill enforces the pairing at resolution time — deterministically, before
-# the verb runs. See scripts/resolve-context.sh for the resolution and
-# coupling logic.
 ---
 
 # Domain: {Name}

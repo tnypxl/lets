@@ -1,10 +1,7 @@
 ---
 domain: '{name}'
 # requires_domain: {name}
-# Uncomment and set when this workflow's verb guidance requires a companion domain.
-# The skill enforces the pairing at resolution time — deterministically, before
-# the verb runs. See scripts/resolve-context.sh for the resolution and
-# coupling logic.
+# Uncomment and set when this workflow's verb guidance requires a companion domain
 ---
 
 # Workflow: {Name}

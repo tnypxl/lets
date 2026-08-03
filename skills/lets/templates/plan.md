@@ -16,7 +16,9 @@ more than one thing breaks into sub-bullets under that step instead of
 cramming them onto one line.
 
 ### T# - {short task title}
-<why this task exists within the plan — its role, not a restatement of its steps>
+
+{why this task belongs in the plan — its role, not a restatement of its steps}
+
 - [ ] Depends on: <none | T# of prerequisite tasks>
 - [ ] {single-fact checklist step}
 - [ ] {checklist step covering more than one thing}

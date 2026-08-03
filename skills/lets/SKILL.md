@@ -38,6 +38,9 @@ Every hand-off to `researcher`, `planner`, or `executor` is the assembled contra
 <task_contract>
   <verb>research | plan | execute</verb>
   <stem>{stem name}</stem>
+  <commands>
+    {skill-dir}/scripts/resolve-context.sh {args}
+  </commands>
   <scope>
     {bounded description of what this subagent is being asked to do —
      never hand a subagent the full notebook/research/plan; hand it

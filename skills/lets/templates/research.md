@@ -10,7 +10,7 @@ source splits into sub-bullets, one line per part:
 
 - {the claim, stated plainly}
   - *Fix:* {what to do about it}
-  - *Source:* <file:line, or URL>
+  - *Source:* {file:line, or URL}
 -->
 
 ## IMPLICATIONS

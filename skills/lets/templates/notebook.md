@@ -29,7 +29,7 @@ Ledger. Append-only, permanently numbered.
 
 Format: - [ ] Q#: {question}
 Resolved: change to [x] and add a nested line directly below,
-indented 4 spaces: - RESOLUTION: {resolution text}
+indented 4 spaces: - RESOLVED: {resolution text}
 
 Rule: one question per list item — split compound questions.
 -->
